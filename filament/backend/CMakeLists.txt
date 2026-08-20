@@ -76,6 +76,10 @@ set(PRIVATE_HDRS
         src/DriverBase.h
         src/JobQueue.h
         src/ThreadPriorityOverride.h
+        src/vulkan/VulkanAsyncBackend.h
+        src/vulkan/VulkanAsyncBackend.cpp
+        src/vulkan/utils/TaskHandler.cpp
+        src/vulkan/utils/TaskHandler.h
 )
 
 # ==================================================================================================
@@ -203,6 +207,8 @@ if (FILAMENT_SUPPORTS_VULKAN)
             include/backend/platforms/VulkanPlatform.h
             src/vulkan/VulkanAsyncHandles.cpp
             src/vulkan/VulkanAsyncHandles.h
+            src/vulkan/VulkanAsyncBackend.cpp
+            src/vulkan/VulkanAsyncBackend.h
             src/vulkan/VulkanBlitter.cpp
             src/vulkan/VulkanBlitter.h
             src/vulkan/VulkanBuffer.h
@@ -273,6 +279,8 @@ if (FILAMENT_SUPPORTS_VULKAN)
             src/vulkan/utils/Spirv.cpp
             src/vulkan/utils/Spirv.h
             src/vulkan/utils/StaticVector.h
+            src/vulkan/utils/TaskHandler.cpp
+            src/vulkan/utils/TaskHandler.h
     )
     if (LINUX)
         list(APPEND SRCS
