@@ -296,10 +296,13 @@ VulkanCommandBuffer& CommandBufferPool::getRecording() {
     return recording;
 }
 
-void CommandBufferPool::gc() {
+void CommandBufferPool::gc(bool print) {
     FVK_SYSTRACE_CONTEXT();
     FVK_SYSTRACE_START("CommandBufferPool::gc");
     ActiveBuffers reclaimed;
+    if (print) {
+        FVK_LOGW << "Inside Async command buffer pool's gc";
+    }
     mSubmitted.forEachSetBit([this,&reclaimed] (size_t index) {
         auto& buffer = mBuffers[index];
         if (buffer->getStatus() == VK_SUCCESS) {
@@ -415,10 +418,13 @@ VulkanCommandBuffer& VulkanCommands::getProtected() {
     return ret;
 }
 
-bool VulkanCommands::flush() {
+bool VulkanCommands::flush(bool print) {
     // It's possible to call flush and wait at "terminate", in which case, we'll just return.
     if (!mPool && !mProtectedPool) {
         return false;
+    }
+    if (print) {
+        FVK_LOGW << "Inside VK commands (Async) ";
     }
 
     VkSemaphore injectedDependency = mInjectedDependency;
@@ -478,11 +484,16 @@ void VulkanCommands::wait() {
     FVK_SYSTRACE_END();
 }
 
-void VulkanCommands::gc() {
+void VulkanCommands::gc(bool print) {
     FVK_SYSTRACE_CONTEXT();
     FVK_SYSTRACE_START("commands::gc");
 
-    mPool->gc();
+    if (print) {
+        FVK_LOGW << "Inside VulkanCommands (Async) gc";
+    }
+
+    mPool->gc(print);
+
     if (mProtectedPool) {
         mProtectedPool->gc();
     }
