@@ -18,19 +18,13 @@
 #define TNT_FILAMENT_BACKEND_VULKANREADPIXELS_H
 
 #include "vulkan/memory/ResourcePointer.h"
+#include "vulkan/utils/TaskHandler.h"
 
 #include <private/backend/Driver.h>
 
 #include <bluevk/BlueVK.h>
 
-#include <utils/Condition.h>
-#include <utils/Mutex.h>
-
-#include <math/vec4.h>
-
 #include <functional>
-#include <queue>
-#include <thread>
 
 namespace filament::backend {
 
@@ -39,36 +33,7 @@ struct VulkanTexture;
 
 class VulkanReadPixels {
 public:
-    // A helper class that runs tasks on a separate thread.
-    class TaskHandler {
-    public:
-        using WorkloadFunc = std::function<void()>;
-        using OnCompleteFunc = std::function<void()>;
-        using Task = std::pair<WorkloadFunc, OnCompleteFunc>;
 
-        TaskHandler();
-
-        // In addition to the workload that the handler will call, client must also provide an
-        // oncomplete function that the handler will call either when the workload completes or when
-        // the handler is shutdown (so that we can clean-up even when the task was not carried out).
-        void post(WorkloadFunc&& workload, OnCompleteFunc&& oncomplete);
-
-        // This will block until all of the tasks are done.
-        void drain();
-
-        // This will quit without running the workloads, but oncomplete callbacks will still be
-        // called.
-        void shutdown();
-
-    private:
-        void loop();
-
-        bool mShouldStop;
-        utils::Condition mHasTaskCondition;
-        utils::Mutex mTaskQueueMutex;
-        std::queue<Task> mTaskQueue;
-        std::thread mThread;
-    };
 
     using OnReadCompleteFunction = std::function<void(PixelBufferDescriptor&&)>;
     using SelecteMemoryFunction = std::function<uint32_t(uint32_t, VkFlags)>;
@@ -94,7 +59,7 @@ public:
 private:
     VkDevice mDevice = VK_NULL_HANDLE;
     VkCommandPool mCommandPool = VK_NULL_HANDLE;
-    std::unique_ptr<TaskHandler> mTaskHandler;
+    std::unique_ptr<fvkutils::TaskHandler> mTaskHandler;
 };
 
 }// namespace filament::backend
