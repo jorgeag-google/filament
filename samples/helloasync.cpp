@@ -89,8 +89,8 @@ struct App {
     // Everything below this point is for demonstrating async logic.
 
     // The number of objects to be created.
-    static constexpr int OBJECT_COUNT = 400;
-    static constexpr int OBJECT_COUNT_PER_ROW = 20;
+    static constexpr int OBJECT_COUNT = 4;
+    static constexpr int OBJECT_COUNT_PER_ROW = 1;
     static constexpr int ROW_COUNT =
             (OBJECT_COUNT + OBJECT_COUNT_PER_ROW - 1) / OBJECT_COUNT_PER_ROW;
 
