@@ -15,7 +15,30 @@
  */
 #include "VulkanAsyncBackend.h"
 namespace filament::backend {
-VulkanAsyncBackend::VulkanAsyncBackend(VulkanCommands commands) : mCommands(std::move(commands)) { }
+VulkanAsyncBackend::VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, fvkmemory::ResourceManager* resourceManager, bool asyncAvailable) : mAsyncAvailable(asyncAvailable){
+    if (mAsyncAvailable) {
+        // Semaphore manager
+        mSemaphoreManager = std::make_unique<VulkanSemaphoreManager>(platform->getDevice(), resourceManager);
+
+        auto graphicsQueueFamilyIndex = platform->getGraphicsQueueFamilyIndex();
+        auto protectedGraphicsQueueFamilyIndex = platform->getProtectedGraphicsQueueFamilyIndex();
+        // A new queue only accesable by this object
+        VkQueue queue;
+        bluevk::vkGetDeviceQueue(platform->getDevice(), graphicsQueueFamilyIndex, 0, &queue);
+        VkQueue protectedQueue;
+        bluevk::vkGetDeviceQueue(platform->getDevice(), protectedGraphicsQueueFamilyIndex, 0, &protectedQueue);
+
+        mCommands = std::make_unique<VulkanCommands>(
+                        platform->getDevice(),
+                        queue,
+                        graphicsQueueFamilyIndex,
+                        protectedQueue,
+                        protectedGraphicsQueueFamilyIndex,
+                        context,
+                        mSemaphoreManager.get()
+                        );
+    }
+}
 void VulkanAsyncBackend::terminate() noexcept{
     if (mTaskHandler) {
         mTaskHandler->shutdown();

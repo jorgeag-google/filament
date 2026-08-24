@@ -24,7 +24,7 @@ namespace filament::backend {
 
 class VulkanAsyncBackend {
 public:
-    explicit VulkanAsyncBackend(VulkanCommands commands);
+    explicit VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, fvkmemory::ResourceManager* resourceManager, bool asyncAvailable);
 
 
 
@@ -32,7 +32,9 @@ public:
 
     void runUntilComplete();
 private:
-    VulkanCommands mCommands;
+    bool mAsyncAvailable;
+    std::unique_ptr<VulkanCommands> mCommands;
+    std::unique_ptr<VulkanSemaphoreManager> mSemaphoreManager;
     std::unique_ptr<fvkutils::TaskHandler> mTaskHandler;
 };
 

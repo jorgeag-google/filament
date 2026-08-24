@@ -238,6 +238,7 @@ private:
 
     JobQueue::Ptr mJobQueue;
     JobWorker::Ptr mJobWorker;
+    VulkanAsyncBackend mAsyncBakcend;
 
     uint8_t mTicksSinceLastGc = 0;
 
