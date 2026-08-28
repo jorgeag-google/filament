@@ -26,16 +26,21 @@ class VulkanAsyncBackend {
 public:
     explicit VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, fvkmemory::ResourceManager* resourceManager, bool asyncAvailable);
 
-
+    void createIndexBuffer(Handle<HwIndexBuffer> ibh, ElementType elementType,
+        uint32_t indexCount, BufferUsage usage, CallbackHandler* handler,
+        CallbackHandler::Callback callback, void* user, utils::ImmutableCString&& tag);
+    void updateIndexBuffer(AsyncCallId jobId, Handle<HwIndexBuffer> ibh,
+        BufferDescriptor&& p, uint32_t byteOffset, CallbackHandler* handler,
+        CallbackHandler::Callback const callback, void* user);
 
     void terminate() noexcept;
 
     void runUntilComplete();
 private:
-    bool mAsyncAvailable;
-    std::unique_ptr<VulkanCommands> mCommands;
-    std::unique_ptr<VulkanSemaphoreManager> mSemaphoreManager;
-    std::unique_ptr<fvkutils::TaskHandler> mTaskHandler;
+    bool mAsyncAvailable = false;
+    std::unique_ptr<VulkanCommands> mCommands = nullptr;
+    std::unique_ptr<VulkanSemaphoreManager> mSemaphoreManager = nullptr;
+    std::unique_ptr<fvkutils::TaskHandler> mTaskHandler = nullptr;
 };
 
 }

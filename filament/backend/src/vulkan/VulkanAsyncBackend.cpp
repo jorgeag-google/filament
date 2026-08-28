@@ -53,4 +53,20 @@ void VulkanAsyncBackend::runUntilComplete() {
     mTaskHandler->drain();
 }
 
+void VulkanAsyncBackend::createIndexBuffer(Handle<HwIndexBuffer> ibh, ElementType elementType,
+    uint32_t indexCount, BufferUsage usage, CallbackHandler* handler,
+    CallbackHandler::Callback callback, void* user, utils::ImmutableCString&& tag) {
+
+}
+
+void VulkanAsyncBackend::updateIndexBuffer(AsyncCallId jobId, Handle<HwIndexBuffer> ibh,
+    BufferDescriptor&& p, uint32_t byteOffset, CallbackHandler* handler,
+    CallbackHandler::Callback const callback, void* user) {
+    /*
+    VulkanCommandBuffer& commands = mCommands.get();
+    commands.acquire(ib);
+    ib->loadFromCpu(commands, p.buffer, byteOffset, p.size);
+    scheduleDestroy(std::move(p));*/
+}
+
 }
