@@ -17,6 +17,7 @@
 #define TNT_FILAMENT_BACKEND_VULKANASYNCBACKEND_H
 
 #include "VulkanCommands.h"
+#include "VulkanHandles.h"
 
 #include "utils/TaskHandler.h"
 
@@ -29,7 +30,7 @@ public:
     void createIndexBuffer(Handle<HwIndexBuffer> ibh, ElementType elementType,
         uint32_t indexCount, BufferUsage usage, CallbackHandler* handler,
         CallbackHandler::Callback callback, void* user, utils::ImmutableCString&& tag);
-    void updateIndexBuffer(AsyncCallId jobId, Handle<HwIndexBuffer> ibh,
+    void updateIndexBuffer(AsyncCallId jobId, resource_ptr<VulkanIndexBuffer> ib,
         BufferDescriptor&& p, uint32_t byteOffset, CallbackHandler* handler,
         CallbackHandler::Callback const callback, void* user);
 
@@ -41,6 +42,7 @@ private:
     std::unique_ptr<VulkanCommands> mCommands = nullptr;
     std::unique_ptr<VulkanSemaphoreManager> mSemaphoreManager = nullptr;
     std::unique_ptr<fvkutils::TaskHandler> mTaskHandler = nullptr;
+    void startTaskHandler();
 };
 
 }

@@ -357,7 +357,8 @@ VulkanDriver::VulkanDriver(VulkanPlatform* platform, VulkanContext& context,
           mStereoscopicType(driverConfig.stereoscopicType),
           mStereoscopicEyeCount(driverConfig.stereoscopicEyeCount),
           mAsynchronousMode(driverConfig.asynchronousMode),
-          mAsyncBakcend(platform, context, &mResourceManager, mAsynchronousMode != AsynchronousMode::NONE) {
+          mAsyncBakcend(platform, context, &mResourceManager, mAsynchronousMode != AsynchronousMode::NONE && kAsyncVer2) {
+
 
     if (mAsynchronousMode != AsynchronousMode::NONE) {
         mJobQueue = JobQueue::create();
@@ -805,10 +806,15 @@ void VulkanDriver::createIndexBufferAsyncR(Handle<HwIndexBuffer> ibh, ElementTyp
     createIndexBufferCommon(ibh, elementType, indexCount, /* asynchronous = */ true,
             std::move(tag));
 
-    assert_invariant(getJobQueue());
-    getJobQueue()->push([this, handler, callback, user]() {
-        scheduleCallback(handler, user, callback);
-    });
+    if (kAsyncVer2) {
+        mAsyncBakcend.createIndexBuffer(ibh, elementType, indexCount, usage, handler, callback, user, std::move(tag));
+    } else {
+        assert_invariant(getJobQueue());
+        getJobQueue()->push([this, handler, callback, user]() {
+            scheduleCallback(handler, user, callback);
+        });
+    }
+
 }
 
 void VulkanDriver::destroyIndexBuffer(Handle<HwIndexBuffer> ibh) {
@@ -2092,15 +2098,22 @@ void VulkanDriver::updateIndexBufferAsyncR(AsyncCallId jobId, Handle<HwIndexBuff
     // pass a resource_ptr instead, which is ref-counted.
     auto ib = resource_ptr<VulkanIndexBuffer>::cast(&mResourceManager, ibh);
 
-    getJobQueue()->push([this, ib, p = std::move(p), byteOffset, handler, callback,
+    if (kAsyncVer2) {
+        mAsyncBakcend.updateIndexBuffer(jobId, ib, std::move(p), byteOffset, handler, callback, user);
+        //scheduleCallback(handler, user, callback);
+    } else {
+        getJobQueue()->push([this, ib, p = std::move(p), byteOffset, handler, callback,
             user]() mutable {
-        updateIndexBufferCommon(ib, std::move(p), byteOffset);
-        scheduleCallback(handler, user, callback);
-    }, jobId);
+                updateIndexBufferCommon(ib, std::move(p), byteOffset);
+                scheduleCallback(handler, user, callback);
+            }, jobId);
+    }
+
 }
 
 void VulkanDriver::updateBufferObjectCommon(resource_ptr<VulkanBufferObject> bo,
         BufferDescriptor&& bd, uint32_t byteOffset) {
+
     VulkanCommandBuffer& commands = mCommands.get();
     commands.acquire(bo);
     bo->loadFromCpu(commands, bd.buffer, byteOffset, bd.size);

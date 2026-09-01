@@ -238,7 +238,7 @@ private:
 
     JobQueue::Ptr mJobQueue;
     JobWorker::Ptr mJobWorker;
-    bool const mAsyncVer2 = false;
+    static constexpr bool kAsyncVer2 = false;
     VulkanAsyncBackend mAsyncBakcend;
 
     uint8_t mTicksSinceLastGc = 0;

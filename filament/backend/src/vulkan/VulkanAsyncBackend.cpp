@@ -59,14 +59,28 @@ void VulkanAsyncBackend::createIndexBuffer(Handle<HwIndexBuffer> ibh, ElementTyp
 
 }
 
-void VulkanAsyncBackend::updateIndexBuffer(AsyncCallId jobId, Handle<HwIndexBuffer> ibh,
+void VulkanAsyncBackend::updateIndexBuffer(AsyncCallId jobId, resource_ptr<VulkanIndexBuffer> ib,
     BufferDescriptor&& p, uint32_t byteOffset, CallbackHandler* handler,
     CallbackHandler::Callback const callback, void* user) {
-    /*
-    VulkanCommandBuffer& commands = mCommands.get();
-    commands.acquire(ib);
-    ib->loadFromCpu(commands, p.buffer, byteOffset, p.size);
-    scheduleDestroy(std::move(p));*/
+
+    auto createIndexBufferFunc = [this, &ib, &p, byteOffset]() {
+        VulkanCommandBuffer& commands = mCommands->get();
+        commands.acquire(ib);
+        ib->loadFromCpu(commands, p.buffer, byteOffset, p.size);
+        // scheduleDestroy(std::move(p));
+    };
+    auto cleanIndexBufferFunc = [/*handler, callback, user*/] () {
+        // scheduleCallback(handler, user, callback);
+    };
+    startTaskHandler();
+    mTaskHandler->post(createIndexBufferFunc, cleanIndexBufferFunc);
+}
+
+void VulkanAsyncBackend::startTaskHandler () {
+    // We don't create a task handler (start a thread) unless an Async method is called.
+    if (!mTaskHandler) {
+        mTaskHandler = std::make_unique<fvkutils::TaskHandler>();
+    }
 }
 
 }
