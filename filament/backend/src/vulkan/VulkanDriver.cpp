@@ -16,6 +16,7 @@
 
 #include "VulkanDriver.h"
 
+#include "../../../../third_party/perfetto/perfetto/perfetto.h"
 #include "CommandStreamDispatcher.h"
 #include "SystraceProfile.h"
 #include "VulkanAsyncHandles.h"
@@ -475,6 +476,9 @@ void VulkanDriver::terminate() {
 
     mBlitter.terminate();
     mReadPixels.terminate();
+    if (kAsyncVer2) {
+        mAsyncBakcend.terminate();
+    }
 
     // Allow the stage pool to clean up.
     mStagePool.gc();
@@ -684,6 +688,9 @@ void VulkanDriver::finish(int dummy) {
     mCommands.wait();
 
     mReadPixels.runUntilComplete();
+    if (kAsyncVer2) {
+        mAsyncBakcend.runUntilComplete();
+    }
 }
 
 void VulkanDriver::createRenderPrimitiveR(Handle<HwRenderPrimitive> rph,

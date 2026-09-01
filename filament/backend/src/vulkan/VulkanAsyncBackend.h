@@ -38,11 +38,11 @@ public:
 
     void runUntilComplete();
 private:
-    bool mAsyncAvailable = false;
     std::unique_ptr<VulkanCommands> mCommands = nullptr;
     std::unique_ptr<VulkanSemaphoreManager> mSemaphoreManager = nullptr;
     std::unique_ptr<fvkutils::TaskHandler> mTaskHandler = nullptr;
     void startTaskHandler();
+    void grabSyncHandles();
 };
 
 }

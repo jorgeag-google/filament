@@ -15,8 +15,8 @@
  */
 #include "VulkanAsyncBackend.h"
 namespace filament::backend {
-VulkanAsyncBackend::VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, fvkmemory::ResourceManager* resourceManager, bool asyncAvailable) : mAsyncAvailable(asyncAvailable){
-    if (mAsyncAvailable) {
+VulkanAsyncBackend::VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, fvkmemory::ResourceManager* resourceManager, bool asyncAvailable) {
+    if (asyncAvailable) {
         // Semaphore manager
         mSemaphoreManager = std::make_unique<VulkanSemaphoreManager>(platform->getDevice(), resourceManager);
 
@@ -47,16 +47,15 @@ void VulkanAsyncBackend::terminate() noexcept{
 }
 
 void VulkanAsyncBackend::runUntilComplete() {
-    if (!mTaskHandler) {
-        return;
+    if (mTaskHandler) {
+        mTaskHandler->drain();
     }
-    mTaskHandler->drain();
 }
 
 void VulkanAsyncBackend::createIndexBuffer(Handle<HwIndexBuffer> ibh, ElementType elementType,
     uint32_t indexCount, BufferUsage usage, CallbackHandler* handler,
     CallbackHandler::Callback callback, void* user, utils::ImmutableCString&& tag) {
-
+    /* Maybe this is not even needed */
 }
 
 void VulkanAsyncBackend::updateIndexBuffer(AsyncCallId jobId, resource_ptr<VulkanIndexBuffer> ib,
@@ -69,8 +68,9 @@ void VulkanAsyncBackend::updateIndexBuffer(AsyncCallId jobId, resource_ptr<Vulka
         ib->loadFromCpu(commands, p.buffer, byteOffset, p.size);
         // scheduleDestroy(std::move(p));
     };
-    auto cleanIndexBufferFunc = [/*handler, callback, user*/] () {
+    auto cleanIndexBufferFunc = [this/*, handler, callback, user*/] () {
         // scheduleCallback(handler, user, callback);
+        grabSyncHandles();
     };
     startTaskHandler();
     mTaskHandler->post(createIndexBufferFunc, cleanIndexBufferFunc);
@@ -81,6 +81,11 @@ void VulkanAsyncBackend::startTaskHandler () {
     if (!mTaskHandler) {
         mTaskHandler = std::make_unique<fvkutils::TaskHandler>();
     }
+}
+
+void VulkanAsyncBackend::grabSyncHandles() {
+    // keep track of the semaphores or any other sync primitive from the mCommands
+    assert(mCommands);
 }
 
 }
