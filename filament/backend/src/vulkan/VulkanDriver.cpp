@@ -358,7 +358,7 @@ VulkanDriver::VulkanDriver(VulkanPlatform* platform, VulkanContext& context,
           mStereoscopicType(driverConfig.stereoscopicType),
           mStereoscopicEyeCount(driverConfig.stereoscopicEyeCount),
           mAsynchronousMode(driverConfig.asynchronousMode),
-          mAsyncBakcend(platform, context, &mResourceManager, mAsynchronousMode != AsynchronousMode::NONE && kAsyncVer2) {
+          mAsyncBakcend(platform, context, &mResourceManager, mAsynchronousMode != AsynchronousMode::NONE && ASYNC_VER_2) {
 
 
     if (mAsynchronousMode != AsynchronousMode::NONE) {
@@ -476,7 +476,7 @@ void VulkanDriver::terminate() {
 
     mBlitter.terminate();
     mReadPixels.terminate();
-    if (kAsyncVer2) {
+    if constexpr (ASYNC_VER_2) {
         mAsyncBakcend.terminate();
     }
 
@@ -688,7 +688,7 @@ void VulkanDriver::finish(int dummy) {
     mCommands.wait();
 
     mReadPixels.runUntilComplete();
-    if (kAsyncVer2) {
+    if constexpr (ASYNC_VER_2) {
         mAsyncBakcend.runUntilComplete();
     }
 }
@@ -813,7 +813,7 @@ void VulkanDriver::createIndexBufferAsyncR(Handle<HwIndexBuffer> ibh, ElementTyp
     createIndexBufferCommon(ibh, elementType, indexCount, /* asynchronous = */ true,
             std::move(tag));
 
-    if (kAsyncVer2) {
+    if constexpr (ASYNC_VER_2) {
         mAsyncBakcend.createIndexBuffer(ibh, elementType, indexCount, usage, handler, callback, user, std::move(tag));
     } else {
         assert_invariant(getJobQueue());
@@ -2104,8 +2104,12 @@ void VulkanDriver::updateIndexBufferAsyncR(AsyncCallId jobId, Handle<HwIndexBuff
     // resource is still pending in the queue, the `cast` call inside the lambda will crash. So we
     // pass a resource_ptr instead, which is ref-counted.
     auto ib = resource_ptr<VulkanIndexBuffer>::cast(&mResourceManager, ibh);
+<<<<<<< HEAD
 
     if (kAsyncVer2) {
+=======
+    if constexpr (ASYNC_VER_2) {
+>>>>>>> 4c5a018 (Change to flag to if constexpre)
         mAsyncBakcend.updateIndexBuffer(jobId, ib, std::move(p), byteOffset, handler, callback, user);
         //scheduleCallback(handler, user, callback);
     } else {

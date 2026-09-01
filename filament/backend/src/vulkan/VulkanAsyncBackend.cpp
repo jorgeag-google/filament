@@ -17,12 +17,12 @@
 namespace filament::backend {
 VulkanAsyncBackend::VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, fvkmemory::ResourceManager* resourceManager, bool asyncAvailable) {
     if (asyncAvailable) {
-        // Semaphore manager
+        // keep track of our own Semaphore manager for the later Sync work
         mSemaphoreManager = std::make_unique<VulkanSemaphoreManager>(platform->getDevice(), resourceManager);
 
         auto graphicsQueueFamilyIndex = platform->getGraphicsQueueFamilyIndex();
         auto protectedGraphicsQueueFamilyIndex = platform->getProtectedGraphicsQueueFamilyIndex();
-        // A new queue only accesable by this object
+        // A new queue only accesable by this object (It will live inside commands)
         VkQueue queue;
         bluevk::vkGetDeviceQueue(platform->getDevice(), graphicsQueueFamilyIndex, 0, &queue);
         VkQueue protectedQueue;
@@ -68,9 +68,12 @@ void VulkanAsyncBackend::updateIndexBuffer(AsyncCallId jobId, resource_ptr<Vulka
         ib->loadFromCpu(commands, p.buffer, byteOffset, p.size);
         // scheduleDestroy(std::move(p));
     };
+    if (p.hasCallback()) {
+        auto buffer = std::move(p);
+    }
     auto cleanIndexBufferFunc = [this/*, handler, callback, user*/] () {
-        // scheduleCallback(handler, user, callback);
         grabSyncHandles();
+        // scheduleCallback(handler, user, callback);
     };
     startTaskHandler();
     mTaskHandler->post(createIndexBufferFunc, cleanIndexBufferFunc);
