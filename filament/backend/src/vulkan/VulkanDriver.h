@@ -127,7 +127,7 @@ private:
     void setVertexBufferObjectCommon(resource_ptr<VulkanVertexBuffer> vb, uint32_t index,
             resource_ptr<VulkanBufferObject> bo);
     void updateIndexBufferCommon(resource_ptr<VulkanIndexBuffer> ib, BufferDescriptor&& p,
-            uint32_t byteOffset);
+            uint32_t byteOffset, VulkanCommandBuffer& commands);
     void updateBufferObjectCommon(resource_ptr<VulkanBufferObject> bo, BufferDescriptor&& bd,
             uint32_t byteOffset);
     void update3DImageCommon(resource_ptr<VulkanTexture> texture, uint32_t level, uint32_t xoffset,
@@ -239,7 +239,7 @@ private:
     JobQueue::Ptr mJobQueue;
     JobWorker::Ptr mJobWorker;
     static constexpr bool ASYNC_VER_2 = true;
-    VulkanAsyncBackend mAsyncBakcend;
+    VulkanAsyncBackend mAsyncBackend;
 
     uint8_t mTicksSinceLastGc = 0;
 

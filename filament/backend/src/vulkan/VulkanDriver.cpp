@@ -358,7 +358,7 @@ VulkanDriver::VulkanDriver(VulkanPlatform* platform, VulkanContext& context,
           mStereoscopicType(driverConfig.stereoscopicType),
           mStereoscopicEyeCount(driverConfig.stereoscopicEyeCount),
           mAsynchronousMode(driverConfig.asynchronousMode),
-          mAsyncBakcend(platform, context, &mResourceManager, mAsynchronousMode != AsynchronousMode::NONE && ASYNC_VER_2) {
+          mAsyncBackend(platform, context, &mResourceManager, mAsynchronousMode != AsynchronousMode::NONE && ASYNC_VER_2) {
 
 
     if (mAsynchronousMode != AsynchronousMode::NONE) {
@@ -477,7 +477,7 @@ void VulkanDriver::terminate() {
     mBlitter.terminate();
     mReadPixels.terminate();
     if constexpr (ASYNC_VER_2) {
-        mAsyncBakcend.terminate();
+        mAsyncBackend.terminate();
     }
 
     // Allow the stage pool to clean up.
@@ -689,7 +689,7 @@ void VulkanDriver::finish(int dummy) {
 
     mReadPixels.runUntilComplete();
     if constexpr (ASYNC_VER_2) {
-        mAsyncBakcend.runUntilComplete();
+        mAsyncBackend.runUntilComplete();
     }
 }
 
@@ -814,7 +814,7 @@ void VulkanDriver::createIndexBufferAsyncR(Handle<HwIndexBuffer> ibh, ElementTyp
             std::move(tag));
 
     if constexpr (ASYNC_VER_2) {
-        mAsyncBakcend.createIndexBuffer(ibh, elementType, indexCount, usage, handler, callback, user, std::move(tag));
+        scheduleCallback(handler, user, callback);
     } else {
         assert_invariant(getJobQueue());
         getJobQueue()->push([this, handler, callback, user]() {
@@ -2080,8 +2080,7 @@ void VulkanDriver::setVertexBufferObjectAsyncR(AsyncCallId jobId, Handle<HwVerte
 }
 
 void VulkanDriver::updateIndexBufferCommon(resource_ptr<VulkanIndexBuffer> ib,
-        BufferDescriptor&& p, uint32_t byteOffset) {
-    VulkanCommandBuffer& commands = mCommands.get();
+        BufferDescriptor&& p, uint32_t byteOffset, VulkanCommandBuffer& commands) {
     commands.acquire(ib);
     ib->loadFromCpu(commands, p.buffer, byteOffset, p.size);
     scheduleDestroy(std::move(p));
@@ -2090,7 +2089,8 @@ void VulkanDriver::updateIndexBufferCommon(resource_ptr<VulkanIndexBuffer> ib,
 void VulkanDriver::updateIndexBuffer(Handle<HwIndexBuffer> ibh, BufferDescriptor&& p,
         uint32_t byteOffset) {
     auto ib = resource_ptr<VulkanIndexBuffer>::cast(&mResourceManager, ibh);
-    updateIndexBufferCommon(ib, std::move(p), byteOffset);
+    VulkanCommandBuffer& commands = mCommands.get();
+    updateIndexBufferCommon(ib, std::move(p), byteOffset, commands);
 }
 
 void VulkanDriver::updateIndexBufferAsyncR(AsyncCallId jobId, Handle<HwIndexBuffer> ibh,
@@ -2104,18 +2104,22 @@ void VulkanDriver::updateIndexBufferAsyncR(AsyncCallId jobId, Handle<HwIndexBuff
     // resource is still pending in the queue, the `cast` call inside the lambda will crash. So we
     // pass a resource_ptr instead, which is ref-counted.
     auto ib = resource_ptr<VulkanIndexBuffer>::cast(&mResourceManager, ibh);
-<<<<<<< HEAD
 
-    if (kAsyncVer2) {
-=======
     if constexpr (ASYNC_VER_2) {
->>>>>>> 4c5a018 (Change to flag to if constexpre)
-        mAsyncBakcend.updateIndexBuffer(jobId, ib, std::move(p), byteOffset, handler, callback, user);
-        //scheduleCallback(handler, user, callback);
+        auto asyncJobFunc = [this, ib, &p, byteOffset](VulkanCommandBuffer& commands) mutable {
+            updateIndexBufferCommon(ib, std::move(p), byteOffset, commands);
+        };
+
+        auto onCompleteFunc = [this, handler, callback, user]() mutable {
+            scheduleCallback(handler, user, callback);
+        };
+        mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc);
+
     } else {
         getJobQueue()->push([this, ib, p = std::move(p), byteOffset, handler, callback,
             user]() mutable {
-                updateIndexBufferCommon(ib, std::move(p), byteOffset);
+                VulkanCommandBuffer& commands = mCommands.get();
+                updateIndexBufferCommon(ib, std::move(p), byteOffset, commands);
                 scheduleCallback(handler, user, callback);
             }, jobId);
     }

@@ -22,13 +22,13 @@ VulkanAsyncBackend::VulkanAsyncBackend(const VulkanPlatform* platform, const Vul
 
         auto graphicsQueueFamilyIndex = platform->getGraphicsQueueFamilyIndex();
         auto protectedGraphicsQueueFamilyIndex = platform->getProtectedGraphicsQueueFamilyIndex();
-        // A new queue only accesable by this object (It will live inside commands)
+        // A new queue only accessible by this object (It will live inside commands)
         VkQueue queue;
         bluevk::vkGetDeviceQueue(platform->getDevice(), graphicsQueueFamilyIndex, 0, &queue);
         VkQueue protectedQueue;
         bluevk::vkGetDeviceQueue(platform->getDevice(), protectedGraphicsQueueFamilyIndex, 0, &protectedQueue);
 
-        mCommands = std::make_unique<VulkanCommands>(
+        mAsyncCommands = std::make_unique<VulkanCommands>(
                         platform->getDevice(),
                         queue,
                         graphicsQueueFamilyIndex,
@@ -52,31 +52,23 @@ void VulkanAsyncBackend::runUntilComplete() {
     }
 }
 
-void VulkanAsyncBackend::createIndexBuffer(Handle<HwIndexBuffer> ibh, ElementType elementType,
-    uint32_t indexCount, BufferUsage usage, CallbackHandler* handler,
-    CallbackHandler::Callback callback, void* user, utils::ImmutableCString&& tag) {
-    /* Maybe this is not even needed */
+void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, std::function<void()> callBackFunc) {
+    VulkanCommandBuffer& commands = mAsyncCommands->get();
+    auto updateFunc = [&commands, job] {
+        job(commands);
+    };
+
+    auto onCompleteFunc = [callBackFunc]() {
+        callBackFunc();
+    };
+
+    startTaskHandler();
+    mTaskHandler->post(updateFunc, onCompleteFunc);
 }
 
-void VulkanAsyncBackend::updateIndexBuffer(AsyncCallId jobId, resource_ptr<VulkanIndexBuffer> ib,
-    BufferDescriptor&& p, uint32_t byteOffset, CallbackHandler* handler,
-    CallbackHandler::Callback const callback, void* user) {
-
-    auto createIndexBufferFunc = [this, &ib, &p, byteOffset]() {
-        VulkanCommandBuffer& commands = mCommands->get();
-        commands.acquire(ib);
-        ib->loadFromCpu(commands, p.buffer, byteOffset, p.size);
-        // scheduleDestroy(std::move(p));
-    };
-    if (p.hasCallback()) {
-        auto buffer = std::move(p);
-    }
-    auto cleanIndexBufferFunc = [this/*, handler, callback, user*/] () {
-        grabSyncHandles();
-        // scheduleCallback(handler, user, callback);
-    };
-    startTaskHandler();
-    mTaskHandler->post(createIndexBufferFunc, cleanIndexBufferFunc);
+void VulkanAsyncBackend::postCreateJob(std::function<void(VulkanCommandBuffer&)> job) {
+    VulkanCommandBuffer& commands = mAsyncCommands->get();
+    job(commands);
 }
 
 void VulkanAsyncBackend::startTaskHandler () {
@@ -88,7 +80,7 @@ void VulkanAsyncBackend::startTaskHandler () {
 
 void VulkanAsyncBackend::grabSyncHandles() {
     // keep track of the semaphores or any other sync primitive from the mCommands
-    assert(mCommands);
+    assert(mAsyncCommands);
 }
 
 }
