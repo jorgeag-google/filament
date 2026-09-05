@@ -16,7 +16,6 @@
 
 #include "VulkanDriver.h"
 
-#include "../../../../third_party/perfetto/perfetto/perfetto.h"
 #include "CommandStreamDispatcher.h"
 #include "SystraceProfile.h"
 #include "VulkanAsyncHandles.h"
@@ -196,25 +195,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags,
 }
 #endif // FVK_ENABLED(FVK_DEBUG_VALIDATION)
 
-#if FVK_ENABLED(FVK_DEBUG_VALIDATION)
-VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-        VkDebugUtilsMessageTypeFlagsEXT types, const VkDebugUtilsMessengerCallbackDataEXT* cbdata,
-        void* pUserData) {
-    if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-        FVK_LOGE << "VULKAN ERROR: (" << cbdata->pMessageIdName << ") " << cbdata->pMessage;
-    } else {
-        // TODO: emit best practices warnings about aggressive pipeline barriers.
-        if (strstr(cbdata->pMessage, "ALL_GRAPHICS_BIT")
-                || strstr(cbdata->pMessage, "ALL_COMMANDS_BIT")) {
-            return VK_FALSE;
-        }
-        FVK_LOGW << "VULKAN WARNING: (" << cbdata->pMessageIdName << ") " << cbdata->pMessage;
-    }
-    FVK_LOGE << "";
-    return VK_FALSE;
-}
-#endif
-
 static CallbackHandler::Callback syncCallbackWrapper = [](void* userData) {
     std::unique_ptr<VulkanSync::CallbackData> cbData(
             static_cast<VulkanSync::CallbackData*>(userData));
@@ -246,62 +226,6 @@ inline VulkanYcbcrConversionCache::Params getYcbcrConversionParams(const VulkanP
 }
 
 }// anonymous namespace
-
-using DebugUtils = VulkanDriver::DebugUtils;
-DebugUtils* DebugUtils::mSingleton = nullptr;
-
-DebugUtils::DebugUtils(VkInstance instance, VkDevice device, VulkanContext const& context)
-        : mInstance(instance),
-          mDevice(device),
-          mEnabled(context.isDebugUtilsEnabled()) {
-
-#if FVK_ENABLED(FVK_DEBUG_VALIDATION)
-    // Also initialize debug utils messenger here
-    if (mEnabled) {
-        VkDebugUtilsMessengerCreateInfoEXT const createInfo = {
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-                .pNext = nullptr,
-                .flags = 0,
-                .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-                                   | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-                .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-                               | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT,
-                .pfnUserCallback = debugUtilsCallback,
-        };
-        VkResult result = vkCreateDebugUtilsMessengerEXT(instance, &createInfo,
-                VKALLOC, &mDebugMessenger);
-        FILAMENT_CHECK_POSTCONDITION(result == VK_SUCCESS)
-                << "Unable to create Vulkan debug messenger. error="
-                << static_cast<int32_t>(result);
-    }
-#endif // FVK_ENABLED(FVK_DEBUG_VALIDATION)
-}
-
-DebugUtils* DebugUtils::get() {
-    assert_invariant(DebugUtils::mSingleton);
-    return DebugUtils::mSingleton;
-}
-
-DebugUtils::~DebugUtils() {
-    if (mDebugMessenger) {
-        vkDestroyDebugUtilsMessengerEXT(mInstance, mDebugMessenger, VKALLOC);
-    }
-}
-
-void DebugUtils::setName(VkObjectType type, uint64_t handle, char const* name) {
-    auto impl = DebugUtils::get();
-    if (!impl->mEnabled) {
-        return;
-    }
-    VkDebugUtilsObjectNameInfoEXT const info = {
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .pNext = nullptr,
-            .objectType = type,
-            .objectHandle = handle,
-            .pObjectName = name,
-    };
-    vkSetDebugUtilsObjectNameEXT(impl->mDevice, &info);
-}
 
 Dispatcher VulkanDriver::getDispatcher() const noexcept {
     return ConcreteDispatcher<VulkanDriver>::make();
@@ -371,8 +295,8 @@ VulkanDriver::VulkanDriver(VulkanPlatform* platform, VulkanContext& context,
         mJobWorker = AmortizationWorker::create(mJobQueue);
     }
 
-    DebugUtils::mSingleton =
-            new DebugUtils(mPlatform->getInstance(), mPlatform->getDevice(), mContext);
+    mContext.getDebugUtils().init(mPlatform->getInstance(), mPlatform->getDevice(),
+            mContext.isDebugUtilsEnabled());
 
 #if FVK_ENABLED(FVK_DEBUG_VALIDATION)
     UTILS_UNUSED const PFN_vkCreateDebugReportCallbackEXT createDebugReportCallback
@@ -521,8 +445,7 @@ void VulkanDriver::terminate() {
         vkDestroyDebugReportCallbackEXT(mPlatform->getInstance(), mDebugCallback, VKALLOC);
     }
 
-    assert_invariant(DebugUtils::mSingleton);
-    delete DebugUtils::mSingleton;
+    mContext.getDebugUtils().terminate();
 
     mPlatform->terminate();
 }
@@ -626,7 +549,7 @@ void VulkanDriver::updateDescriptorSetTexture(
     auto set = resource_ptr<VulkanDescriptorSet>::cast(&mResourceManager, dsh);
     auto texture = resource_ptr<VulkanTexture>::cast(&mResourceManager, th);
 
-    if (UTILS_UNLIKELY(mExternalImageManager.isExternallySampledTexture(texture))) {
+    if (UTILS_UNLIKELY(texture->isExternallySampled())) {
         mExternalImageManager.bindExternallySampledTexture(set, binding, texture, params);
         mAppState.hasBoundExternalImages = true;
         set->isAnExternalSamplerBound = true;
@@ -649,8 +572,6 @@ void VulkanDriver::updateDescriptorSetTexture(
         };
         VkSampler const vksampler = mSamplerCache.getSampler(cacheParams);
         mDescriptorSetCache.updateSampler(set, binding, texture, vksampler);
-        mExternalImageManager.clearTextureBinding(set, binding);
-        mStreamedImageManager.unbindStreamedTexture(set, binding);
     }
 }
 
@@ -755,19 +676,13 @@ void VulkanDriver::createVertexBufferR(Handle<HwVertexBuffer> vbh, uint32_t vert
 
 void VulkanDriver::createVertexBufferAsyncR(Handle<HwVertexBuffer> vbh, uint32_t vertexCount,
         Handle<HwVertexBufferInfo> vbih, CallbackHandler* handler,
-        CallbackHandler::Callback callback, void* user, utils::ImmutableCString&& tag) {
+        AsyncCallback callback, void* user, utils::ImmutableCString&& tag) {
     FVK_SYSTRACE_SCOPE();
 
     // This doesn't allocate GPU memory yet, so call it synchronously on the backend thread.
     createVertexBufferCommon(vbh, vertexCount, vbih, /* asynchronous = */ true, std::move(tag));
-    if constexpr (ASYNC_VER_2) {
-        scheduleCallback(handler, user, callback);
-    } else {
-        assert_invariant(getJobQueue());
-        getJobQueue()->push([this, handler, callback, user]() {
-            scheduleCallback(handler, user, callback);
-        });
-    }
+
+    scheduleAsyncCallback(handler, callback, user, AsyncCallStatus::COMPLETED);
 }
 
 void VulkanDriver::destroyVertexBuffer(Handle<HwVertexBuffer> vbh) {
@@ -806,7 +721,7 @@ void VulkanDriver::createIndexBufferR(Handle<HwIndexBuffer> ibh, ElementType ele
 
 void VulkanDriver::createIndexBufferAsyncR(Handle<HwIndexBuffer> ibh, ElementType elementType,
         uint32_t indexCount, BufferUsage usage, CallbackHandler* handler,
-        CallbackHandler::Callback callback, void* user, utils::ImmutableCString&& tag) {
+        AsyncCallback callback, void* user, utils::ImmutableCString&& tag) {
     FVK_SYSTRACE_SCOPE();
 
     // Create the resource synchronously on the backend thread because:
@@ -816,15 +731,7 @@ void VulkanDriver::createIndexBufferAsyncR(Handle<HwIndexBuffer> ibh, ElementTyp
     createIndexBufferCommon(ibh, elementType, indexCount, /* asynchronous = */ true,
             std::move(tag));
 
-    if constexpr (ASYNC_VER_2) {
-        scheduleCallback(handler, user, callback);
-    } else {
-        assert_invariant(getJobQueue());
-        getJobQueue()->push([this, handler, callback, user]() {
-            scheduleCallback(handler, user, callback);
-        });
-    }
-
+    scheduleAsyncCallback(handler, callback, user, AsyncCallStatus::COMPLETED);
 }
 
 void VulkanDriver::destroyIndexBuffer(Handle<HwIndexBuffer> ibh) {
@@ -863,7 +770,7 @@ void VulkanDriver::createBufferObjectR(Handle<HwBufferObject> boh, uint32_t byte
 
 void VulkanDriver::createBufferObjectAsyncR(Handle<HwBufferObject> boh, uint32_t byteCount,
         BufferObjectBinding bindingType, BufferUsage usage, CallbackHandler* handler,
-        CallbackHandler::Callback callback, void* user, utils::ImmutableCString&& tag) {
+        AsyncCallback callback, void* user, utils::ImmutableCString&& tag) {
     FVK_SYSTRACE_SCOPE();
 
     // Create the resource synchronously on the backend thread because:
@@ -872,14 +779,8 @@ void VulkanDriver::createBufferObjectAsyncR(Handle<HwBufferObject> boh, uint32_t
     // Only the callback is deferred through the JobQueue to preserve FIFO ordering.
     createBufferObjectCommon(boh, byteCount, bindingType, usage, /* asynchronous = */ true,
             std::move(tag));
-    if constexpr (ASYNC_VER_2) {
-        scheduleCallback(handler, user, callback);
-    } else {
-        assert_invariant(getJobQueue());
-        getJobQueue()->push([this, handler, callback, user]() {
-            scheduleCallback(handler, user, callback);
-        });
-    }
+
+    scheduleAsyncCallback(handler, callback, user, AsyncCallStatus::COMPLETED);
 }
 
 void VulkanDriver::destroyBufferObject(Handle<HwBufferObject> boh) {
@@ -927,7 +828,7 @@ void VulkanDriver::createTextureR(Handle<HwTexture> th, SamplerType target, uint
 
 void VulkanDriver::createTextureAsyncR(Handle<HwTexture> th, SamplerType target, uint8_t levels,
         TextureFormat format, uint8_t samples, uint32_t w, uint32_t h, uint32_t depth,
-        TextureUsage usage, CallbackHandler* handler, CallbackHandler::Callback callback,
+        TextureUsage usage, CallbackHandler* handler, AsyncCallback callback,
         void* user, utils::ImmutableCString&& tag) {
     FVK_SYSTRACE_SCOPE();
 
@@ -936,10 +837,7 @@ void VulkanDriver::createTextureAsyncR(Handle<HwTexture> th, SamplerType target,
     createTextureCommon(th, target, levels, format, samples, w, h, depth, usage,
             /* asynchronous = */ true, std::move(tag));
 
-    assert_invariant(getJobQueue());
-    getJobQueue()->push([this, handler, callback, user]() {
-        scheduleCallback(handler, user, callback);
-    });
+    scheduleAsyncCallback(handler, callback, user, AsyncCallStatus::COMPLETED);
 }
 
 void VulkanDriver::createTextureViewR(Handle<HwTexture> th, Handle<HwTexture> srch,
@@ -974,16 +872,13 @@ void VulkanDriver::createTextureViewSwizzleR(Handle<HwTexture> th, Handle<HwText
 void VulkanDriver::createTextureViewSwizzleAsyncR(Handle<HwTexture> th, Handle<HwTexture> srch,
         backend::TextureSwizzle r, backend::TextureSwizzle g, backend::TextureSwizzle b,
         backend::TextureSwizzle a, CallbackHandler* handler,
-        CallbackHandler::Callback const callback, void* user, utils::ImmutableCString&& tag) {
+        AsyncCallback const callback, void* user, utils::ImmutableCString&& tag) {
     FVK_SYSTRACE_SCOPE();
 
     // This doesn't allocate GPU memory yet, so call it synchronously on the backend thread.
     createTextureViewSwizzleCommon(th, srch, r, g, b, a, std::move(tag));
 
-    assert_invariant(getJobQueue());
-    getJobQueue()->push([this, handler, callback, user]() {
-        scheduleCallback(handler, user, callback);
-    });
+    scheduleAsyncCallback(handler, callback, user, AsyncCallStatus::COMPLETED);
 }
 
 void VulkanDriver::createTextureExternalImage2R(Handle<HwTexture> th, backend::SamplerType target,
@@ -1030,10 +925,6 @@ void VulkanDriver::createTextureExternalImage2R(Handle<HwTexture> th, backend::S
     // texture into the read layout.
     texture->transitionLayout(&commands, texture->getPrimaryViewRange(), VulkanLayout::FRAG_READ);
 
-    if (imgData.external.valid() || texture->isYUVStaging()) {
-        mExternalImageManager.addExternallySampledTexture(texture, conversion);
-    }
-
     texture.inc();
     mResourceManager.associateHandle(th.getId(), std::move(tag));
 }
@@ -1072,14 +963,14 @@ void VulkanDriver::importTextureR(Handle<HwTexture> th, intptr_t id,
 void VulkanDriver::importTextureAsyncR(Handle<HwTexture> th, intptr_t id,
         SamplerType target, uint8_t levels,
         TextureFormat format, uint8_t samples, uint32_t w, uint32_t h, uint32_t depth,
-        TextureUsage usage, CallbackHandler* handler, CallbackHandler::Callback callback,
+        TextureUsage usage, CallbackHandler* handler, AsyncCallback callback,
         void* user, utils::ImmutableCString&& tag) {
     importTextureCommon(th, id, target, levels, format, samples, w, h, depth, usage,
             std::move(tag));
     // Still fire the callback to avoid deadlocking the frontend's `CountdownCallbackHandler`. In
     // release builds where the assert is compiled out, an unfired callback would leave
-    // mCreationComplete stuck at false, causing deferred destruction to spin forever.
-    scheduleCallback(handler, user, callback);
+    // mCreationStatus stuck at CREATING, causing deferred destruction to spin forever.
+    scheduleAsyncCallback(handler, callback, user, AsyncCallStatus::COMPLETED);
 }
 
 void VulkanDriver::destroyTexture(Handle<HwTexture> th) {
@@ -1087,10 +978,6 @@ void VulkanDriver::destroyTexture(Handle<HwTexture> th) {
         return;
     }
     auto texture = resource_ptr<VulkanTexture>::cast(&mResourceManager, th);
-
-    // Must happen immediately on the backend thread. Removes from ExternalImageManager's tracking
-    // map. Only the dec() ref-release is deferred in the async path.
-    mExternalImageManager.removeExternallySampledTexture(texture);
 
     if (texture->asynchronous && getJobQueue()) {
         // Route the `dec()` through the queue to preserve FIFO ordering with any pending async
@@ -1693,9 +1580,11 @@ void VulkanDriver::updateStreams(CommandStream* driver) {
                                          image = stream->getAcquired().image]() {
                 auto texture = s->getTexture(image);
                 if (!texture) {
-                    auto externalImage = fvkutils::createExternalImageFromRaw(mPlatform, image, false);
+                    auto externalImage =
+                            fvkutils::createExternalImageFromRaw(mPlatform, image, false);
                     auto metadata = mPlatform->extractExternalImageMetadata(externalImage);
-                    auto imgData = mPlatform->createVkImageFromExternal(externalImage, texture->width, texture->height);
+                    auto imgData = mPlatform->createVkImageFromExternal(externalImage,
+                            metadata.width, metadata.height);
 
                     assert_invariant(imgData.internal.valid() || imgData.external.valid());
 
@@ -1730,8 +1619,6 @@ void VulkanDriver::updateStreams(CommandStream* driver) {
                             VulkanLayout::FRAG_READ);
 
                     if (imgData.external.valid()) {
-                        mExternalImageManager.addExternallySampledTexture(newTexture,
-                                conversion);
                         // Cache the AHB backed image. Acquires the image here.
                         s->pushImage(image, newTexture);
                     }
@@ -2068,7 +1955,7 @@ void VulkanDriver::setVertexBufferObject(Handle<HwVertexBuffer> vbh, uint32_t in
 
 void VulkanDriver::setVertexBufferObjectAsyncR(AsyncCallId jobId, Handle<HwVertexBuffer> vbh,
         uint32_t index, Handle<HwBufferObject> boh, CallbackHandler* handler,
-        CallbackHandler::Callback const callback, void* user) {
+        AsyncCallback const callback, void* user) {
     assert_invariant(getJobQueue());
 
     // We cannot pass a resource handle into the lambda because the `cast` method has a strict
@@ -2084,14 +1971,15 @@ void VulkanDriver::setVertexBufferObjectAsyncR(AsyncCallId jobId, Handle<HwVerte
         };
 
         auto onCompleteFunc = [this, handler, callback, user]() mutable {
-            scheduleCallback(handler, user, callback);
+            auto completion = AsyncCompletion(this, handler, callback, user);
+            completion.schedule(AsyncCallStatus::COMPLETED);
         };
         mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc);
-
     } else {
-        getJobQueue()->push([this, vb, bo, index, handler, callback, user]() mutable {
+        getJobQueue()->push([this, vb, bo, index,
+                completion = AsyncCompletion(this, handler, callback, user)]() mutable {
             setVertexBufferObjectCommon(vb, index, bo);
-            scheduleCallback(handler, user, callback);
+            completion.schedule(AsyncCallStatus::COMPLETED);
         }, jobId);
     }
 }
@@ -2112,7 +2000,7 @@ void VulkanDriver::updateIndexBuffer(Handle<HwIndexBuffer> ibh, BufferDescriptor
 
 void VulkanDriver::updateIndexBufferAsyncR(AsyncCallId jobId, Handle<HwIndexBuffer> ibh,
         BufferDescriptor&& p, uint32_t byteOffset, CallbackHandler* handler,
-        CallbackHandler::Callback const callback, void* user) {
+        AsyncCallback const callback, void* user) {
     assert_invariant(getJobQueue());
 
     // We cannot pass a resource handle into the lambda because the `cast` method has a strict
@@ -2128,16 +2016,16 @@ void VulkanDriver::updateIndexBufferAsyncR(AsyncCallId jobId, Handle<HwIndexBuff
         };
 
         auto onCompleteFunc = [this, handler, callback, user]() mutable {
-            scheduleCallback(handler, user, callback);
+            auto completion = AsyncCompletion(this, handler, callback, user);
+            completion.schedule(AsyncCallStatus::COMPLETED);
         };
         mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc);
-
     } else {
-        getJobQueue()->push([this, ib, p = std::move(p), byteOffset, handler, callback,
-            user]() mutable {
+        getJobQueue()->push([this, ib, p = std::move(p), byteOffset,
+            completion = AsyncCompletion(this, handler, callback, user)]() mutable {
                 VulkanCommandBuffer& commands = mCommands.get();
                 updateIndexBufferCommon(ib, std::move(p), byteOffset, commands);
-                scheduleCallback(handler, user, callback);
+                completion.schedule(AsyncCallStatus::COMPLETED);
             }, jobId);
     }
 
@@ -2145,7 +2033,6 @@ void VulkanDriver::updateIndexBufferAsyncR(AsyncCallId jobId, Handle<HwIndexBuff
 
 void VulkanDriver::updateBufferObjectCommon(resource_ptr<VulkanBufferObject> bo,
         BufferDescriptor&& bd, uint32_t byteOffset, VulkanCommandBuffer& commands) {
-
     commands.acquire(bo);
     bo->loadFromCpu(commands, bd.buffer, byteOffset, bd.size);
     scheduleDestroy(std::move(bd));
@@ -2160,7 +2047,7 @@ void VulkanDriver::updateBufferObject(Handle<HwBufferObject> boh, BufferDescript
 
 void VulkanDriver::updateBufferObjectAsyncR(AsyncCallId jobId, Handle<HwBufferObject> boh,
         BufferDescriptor&& bd, uint32_t byteOffset, CallbackHandler* handler,
-        CallbackHandler::Callback const callback, void* user) {
+        AsyncCallback const callback, void* user) {
     assert_invariant(getJobQueue());
 
     // We cannot pass a resource handle into the lambda because the `cast` method has a strict
@@ -2175,16 +2062,17 @@ void VulkanDriver::updateBufferObjectAsyncR(AsyncCallId jobId, Handle<HwBufferOb
         };
 
         auto onCompleteFunc = [this, handler, callback, user]() mutable {
-            scheduleCallback(handler, user, callback);
+            auto completion = AsyncCompletion(this, handler, callback, user);
+            completion.schedule(AsyncCallStatus::COMPLETED);
         };
         mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc);
 
     } else {
-        getJobQueue()->push([this, bo, bd = std::move(bd), byteOffset, handler, callback,
-                user]() mutable {
+        getJobQueue()->push([this, bo, bd = std::move(bd), byteOffset,
+            completion = AsyncCompletion(this, handler, callback, user)]() mutable {
             VulkanCommandBuffer& commands = mCommands.get();
             updateBufferObjectCommon(bo, std::move(bd), byteOffset, commands);
-            scheduleCallback(handler, user, callback);
+            completion.schedule(AsyncCallStatus::COMPLETED);
         }, jobId);
     }
 }
@@ -2226,7 +2114,7 @@ void VulkanDriver::update3DImage(Handle<HwTexture> th, uint32_t level, uint32_t 
 void VulkanDriver::update3DImageAsyncR(AsyncCallId jobId, Handle<HwTexture> th,
         uint32_t level, uint32_t xoffset, uint32_t yoffset, uint32_t zoffset, uint32_t width,
         uint32_t height, uint32_t depth, PixelBufferDescriptor&& data, CallbackHandler* handler,
-        CallbackHandler::Callback const callback, void* user) {
+        AsyncCallback const callback, void* user) {
     assert_invariant(getJobQueue());
 
     // We cannot pass a resource handle into the lambda because the `cast` method has a strict
@@ -2243,16 +2131,18 @@ void VulkanDriver::update3DImageAsyncR(AsyncCallId jobId, Handle<HwTexture> th,
         };
 
         auto onCompleteFunc = [this, handler, callback, user]() mutable {
-            scheduleCallback(handler, user, callback);
+            auto completion = AsyncCompletion(this, handler, callback, user);
+            completion.schedule(AsyncCallStatus::COMPLETED);
         };
         mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc);
     } else {
         getJobQueue()->push([this, t, level, xoffset, yoffset, zoffset, width, height, depth,
-                data = std::move(data), handler, callback, user]() mutable {
-            update3DImageCommon(t, level, xoffset, yoffset, zoffset, width, height, depth,
-                    std::move(data));
-            scheduleCallback(handler, user, callback);
-        }, jobId);
+                    data = std::move(data),
+                    completion = AsyncCompletion(this, handler, callback, user)]() mutable {
+                update3DImageCommon(t, level, xoffset, yoffset, zoffset, width, height, depth,
+                        std::move(data));
+                completion.schedule(AsyncCallStatus::COMPLETED);
+            }, jobId);
     }
 }
 
@@ -2464,8 +2354,9 @@ void VulkanDriver::beginRenderPass(Handle<HwRenderTarget> rth, const RenderPassP
         if (!topMarker.empty()) {
             uint64_t fbVk = (uint64_t) vkfb->getVkFramebuffer();
             uint64_t renderPassVk = (uint64_t) renderPass->getVkRenderPass();
-            DebugUtils::setName(VK_OBJECT_TYPE_FRAMEBUFFER, fbVk, topMarker.c_str());
-            DebugUtils::setName(VK_OBJECT_TYPE_RENDER_PASS, renderPassVk, topMarker.c_str());
+            mContext.getDebugUtils().setName(VK_OBJECT_TYPE_FRAMEBUFFER, fbVk, topMarker.c_str());
+            mContext.getDebugUtils().setName(VK_OBJECT_TYPE_RENDER_PASS, renderPassVk,
+                    topMarker.c_str());
         }
     }
 
@@ -2910,7 +2801,6 @@ void VulkanDriver::bindPipeline(PipelineState const& pipelineState) {
         if (std::any_of(layoutHandles.begin(), layoutHandles.end(), haveExternalSamplers)) {
             BindInDrawBundle bundle = {
                 .pipelineState = pipelineState,
-                .dsLayoutHandles = layoutHandles,
                 .descriptorSetMask = descriptorSetMask,
             };
             mPipelineState.bindInDraw = { true, bundle };
@@ -3201,13 +3091,14 @@ void VulkanDriver::endTimerQuery(Handle<HwTimerQuery> tqh) {
 }
 
 void VulkanDriver::queueCommandAsyncR(AsyncCallId jobId, utils::Invocable<void()>&& command,
-        CallbackHandler* handler, CallbackHandler::Callback const callback, void* user) {
+        CallbackHandler* handler, AsyncCallback const callback, void* user) {
     assert_invariant(getJobQueue());
-    getJobQueue()->push([this, command = std::move(command), handler, callback, user]() mutable {
+    getJobQueue()->push([command = std::move(command),
+            completion = AsyncCompletion(this, handler, callback, user)]() mutable {
         if (command) {
             command();
         }
-        scheduleCallback(handler, user, callback);
+        completion.schedule(AsyncCallStatus::COMPLETED);
     }, jobId);
 }
 
@@ -3246,6 +3137,10 @@ void VulkanDriver::resetState(int) {
 
 void VulkanDriver::endCommandRecording() {
     mCommands.flush();
+    invalidateBoundState();
+}
+
+void VulkanDriver::invalidateBoundState() {
     mPipelineCache.resetBoundPipeline();
     mDescriptorSetCache.resetCachedState();
 }
@@ -3263,6 +3158,12 @@ bool VulkanDriver::acquireNextSwapchainImage() {
     auto const [acquired, backingChanged] = mCurrentSwapChain->acquire();
     if (backingChanged) {
         mFramebufferCache.resetFramebuffers();
+
+        if (mPlatform->getCustomization().flushAndWaitOnWindowResize) {
+            // In this scenario the command buffer was flushed, so we need
+            // to set again the pipeline state and descriptor set state.
+            invalidateBoundState();
+        }
     }
     // Note that ordering this after the above lines is necessary since we set the swapchain image
     // to the render target in bindSwapChain().
