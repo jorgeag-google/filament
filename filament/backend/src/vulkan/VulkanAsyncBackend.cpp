@@ -52,18 +52,24 @@ void VulkanAsyncBackend::runUntilComplete() {
     }
 }
 
-void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, std::function<void()> callBackFunc) {
+void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, std::function<void()> callBackFunc, AsyncCallId jobId, JobQueue::Ptr queue) {
     VulkanCommandBuffer& commands = mAsyncCommands->get();
-    auto updateFunc = [&commands, job] {
+    auto updateFunc = [&commands, job, jobId] {
         job(commands);
+        FVK_LOGW << "Async Job " << jobId << " recorded";
     };
 
-    auto onCompleteFunc = [callBackFunc]() {
+    auto onCompleteFunc = [this, callBackFunc, jobId, queue]() {
         callBackFunc();
+        queue->push([this]() {
+            mAsyncCommands->flush();
+        });
+        FVK_LOGW << "Async Job " << jobId << " callback executed";
     };
 
     startTaskHandler();
     mTaskHandler->post(updateFunc, onCompleteFunc);
+
 }
 
 void VulkanAsyncBackend::postCreateJob(std::function<void(VulkanCommandBuffer&)> job) {
@@ -81,6 +87,14 @@ void VulkanAsyncBackend::startTaskHandler () {
 void VulkanAsyncBackend::grabSyncHandles() {
     // keep track of the semaphores or any other sync primitive from the mCommands
     assert(mAsyncCommands);
+}
+
+void VulkanAsyncBackend::gc() {
+    assert(mAsyncCommands);
+
+    mTaskHandler->post([this]() {
+        mAsyncCommands->gc();
+    }, [](){});
 }
 
 }

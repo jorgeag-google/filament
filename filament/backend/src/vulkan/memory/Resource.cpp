@@ -44,6 +44,7 @@ template ResourceType getTypeEnum<VulkanSemaphore>() noexcept;
 template ResourceType getTypeEnum<VulkanStream>() noexcept;
 template ResourceType getTypeEnum<VulkanFramebuffer>() noexcept;
 template ResourceType getTypeEnum<VulkanRenderPass>() noexcept;
+template ResourceType getTypeEnum<VulkanAsyncCallback>() noexcept;
 
 template<typename D>
 ResourceType getTypeEnum() noexcept {
@@ -116,6 +117,9 @@ ResourceType getTypeEnum() noexcept {
     if constexpr (std::is_same_v<D, VulkanRenderPass>) {
         return ResourceType::RENDER_PASS;
     }
+    if constexpr (std::is_same_v<D, VulkanAsyncCallback>) {
+        return ResourceType::ASYNC_CALLBACK;
+    }
     return ResourceType::UNDEFINED_TYPE;
 }
 
@@ -167,6 +171,8 @@ std::string_view getTypeStr(ResourceType type) {
             return "Framebuffer";
         case ResourceType::RENDER_PASS:
             return "RenderPass";
+        case ResourceType::ASYNC_CALLBACK:
+            return "AsyncCallback";
         case ResourceType::UNDEFINED_TYPE:
             return "";
     }

@@ -152,6 +152,18 @@ private:
     VkDescriptorSetLayout mExternalSamplerVkLayout = VK_NULL_HANDLE;
 };
 
+struct VulkanAsyncCallback :  fvkmemory::Resource {
+public:
+
+    VulkanAsyncCallback(DriverBase::AsyncCompletion completion) : mCompletion(std::move(completion)){}
+
+    // NOLINTNEXTLINE(bugprone-exception-escape)
+    ~VulkanAsyncCallback() {
+        mCompletion.schedule(AsyncCallStatus::COMPLETED);
+    }
+    DriverBase::AsyncCompletion mCompletion;
+};
+
 struct VulkanDescriptorSet : public HwDescriptorSet, fvkmemory::Resource {
 public:
     // Because we need to recycle descriptor sets not used, we allow for a callback that the "Pool"

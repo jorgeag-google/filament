@@ -16,6 +16,7 @@
 #ifndef TNT_FILAMENT_BACKEND_VULKANASYNCBACKEND_H
 #define TNT_FILAMENT_BACKEND_VULKANASYNCBACKEND_H
 
+#include "JobQueue.h"
 #include "VulkanCommands.h"
 #include "VulkanHandles.h"
 
@@ -27,8 +28,9 @@ class VulkanAsyncBackend {
 public:
     explicit VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, fvkmemory::ResourceManager* resourceManager, bool asyncAvailable);
 
-    void postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, std::function<void()> callBackFunc);
+    void postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, std::function<void()> callBackFunc, AsyncCallId jobId, JobQueue::Ptr queue);
     void postCreateJob(std::function<void(VulkanCommandBuffer&)> job);
+    void gc();
     void terminate() noexcept;
 
     void runUntilComplete();
