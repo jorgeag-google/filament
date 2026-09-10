@@ -52,7 +52,7 @@ void VulkanAsyncBackend::runUntilComplete() {
     }
 }
 
-void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, std::function<void()> callBackFunc, AsyncCallId jobId, JobQueue::Ptr queue) {
+void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, std::function<void()> callBackFunc, AsyncCallId jobId, JobQueue* queue) {
     VulkanCommandBuffer& commands = mAsyncCommands->get();
     auto updateFunc = [&commands, job, jobId] {
         job(commands);
@@ -62,7 +62,7 @@ void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)>
     auto onCompleteFunc = [this, callBackFunc, jobId, queue]() {
         callBackFunc();
         queue->push([this, jobId]() {
-            mAsyncCommands->flush();
+            if (!mAsyncCommands->flush() ) { FVK_LOGW << "Error on flush";}
             FVK_LOGW << "Async Job " << jobId << " flush";
         });
         FVK_LOGW << "Async Job " << jobId << " callback executed";
@@ -71,11 +71,6 @@ void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)>
     startTaskHandler();
     mTaskHandler->post(updateFunc, onCompleteFunc);
 
-}
-
-void VulkanAsyncBackend::postCreateJob(std::function<void(VulkanCommandBuffer&)> job) {
-    VulkanCommandBuffer& commands = mAsyncCommands->get();
-    job(commands);
 }
 
 void VulkanAsyncBackend::startTaskHandler () {
@@ -92,10 +87,14 @@ void VulkanAsyncBackend::grabSyncHandles() {
 
 void VulkanAsyncBackend::gc() {
     assert(mAsyncCommands);
+    if (mTaskHandler) {
+        mTaskHandler->post([this]() {
+            FVK_LOGW << "Before gc";
+            mAsyncCommands->gc(true);
+            FVK_LOGW << "After gc";
+            }, [](){});
+    }
 
-    mTaskHandler->post([this]() {
-        mAsyncCommands->gc();
-    }, [](){});
 }
 
 }

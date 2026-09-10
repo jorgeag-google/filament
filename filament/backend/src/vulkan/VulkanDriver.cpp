@@ -1976,7 +1976,7 @@ void VulkanDriver::setVertexBufferObjectAsyncR(AsyncCallId jobId, Handle<HwVerte
         auto onCompleteFunc = []() mutable {
 
         };
-        mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc, jobId, mJobQueue);
+        mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc, jobId, getJobQueue());
         FVK_LOGW << "Async Update Vertex Job " << jobId << " scheduled";
     } else {
         getJobQueue()->push([this, vb, bo, index,
@@ -2022,7 +2022,7 @@ void VulkanDriver::updateIndexBufferAsyncR(AsyncCallId jobId, Handle<HwIndexBuff
 
         auto onCompleteFunc = []() mutable {
         };
-        mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc, jobId, mJobQueue);
+        mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc, jobId, getJobQueue());
         FVK_LOGW << "Async Updated Index Job " << jobId << " scheduled";
     } else {
         getJobQueue()->push([this, ib, p = std::move(p), byteOffset,
@@ -2070,7 +2070,7 @@ void VulkanDriver::updateBufferObjectAsyncR(AsyncCallId jobId, Handle<HwBufferOb
         auto onCompleteFunc = []() mutable {
 
         };
-        mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc, jobId, mJobQueue);
+        mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc, jobId, getJobQueue());
         FVK_LOGW << "Async Updated Buffer Object Job " << jobId << " scheduled";
 
     } else {
@@ -2141,7 +2141,7 @@ void VulkanDriver::update3DImageAsyncR(AsyncCallId jobId, Handle<HwTexture> th,
         auto onCompleteFunc = []() mutable {
 
         };
-        mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc, jobId, mJobQueue);
+        mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc, jobId, getJobQueue());
         FVK_LOGW << "Async Updated 3D Image Job " << jobId << " scheduled";
     } else {
         getJobQueue()->push([this, t, level, xoffset, yoffset, zoffset, width, height, depth,

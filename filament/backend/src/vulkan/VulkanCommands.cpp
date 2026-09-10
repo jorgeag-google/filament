@@ -296,7 +296,7 @@ VulkanCommandBuffer& CommandBufferPool::getRecording() {
     return recording;
 }
 
-void CommandBufferPool::gc() {
+void CommandBufferPool::gc(bool print) {
     FVK_SYSTRACE_CONTEXT();
     FVK_SYSTRACE_START("CommandBufferPool::gc");
     ActiveBuffers reclaimed;
@@ -478,11 +478,16 @@ void VulkanCommands::wait() {
     FVK_SYSTRACE_END();
 }
 
-void VulkanCommands::gc() {
+void VulkanCommands::gc(bool print) {
     FVK_SYSTRACE_CONTEXT();
     FVK_SYSTRACE_START("commands::gc");
 
-    mPool->gc();
+    if (print) {
+        FVK_LOGW << "inside async gc";
+    }
+
+    mPool->gc(print);
+
     if (mProtectedPool) {
         mProtectedPool->gc();
     }

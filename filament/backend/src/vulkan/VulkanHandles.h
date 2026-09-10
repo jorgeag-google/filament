@@ -155,7 +155,9 @@ private:
 struct VulkanAsyncCallback :  fvkmemory::Resource {
 public:
 
-    VulkanAsyncCallback(DriverBase::AsyncCompletion completion) : mCompletion(std::move(completion)){}
+    VulkanAsyncCallback(DriverBase::AsyncCompletion completion) : mCompletion(std::move(completion)) {
+        FVK_LOGW << "Resource callback";
+    }
 
     // NOLINTNEXTLINE(bugprone-exception-escape)
     ~VulkanAsyncCallback() {

@@ -146,7 +146,7 @@ struct CommandBufferPool {
 
     VulkanCommandBuffer& getRecording();
 
-    void gc();
+    void gc(bool print = false);
     void update();
     fvkmemory::resource_ptr<VulkanSemaphore> flush();
     void wait();
@@ -243,7 +243,7 @@ public:
     }
 
     // Destroys all command buffers that are no longer in use.
-    void gc();
+    void gc(bool print = false);
 
     // Waits for all outstanding command buffers to finish.
     void wait();
