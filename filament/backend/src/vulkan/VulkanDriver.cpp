@@ -1967,13 +1967,14 @@ void VulkanDriver::setVertexBufferObjectAsyncR(AsyncCallId jobId, Handle<HwVerte
     auto vb = resource_ptr<VulkanVertexBuffer>::cast(&mResourceManager, vbh);
     auto bo = resource_ptr<VulkanBufferObject>::cast(&mResourceManager, boh);
     if constexpr (ASYNC_VER_2) {
-        auto asyncJobFunc = [this, vb, bo, index](VulkanCommandBuffer& commands) mutable {
+        auto asyncJobFunc = [this, vb, bo, index, handler, callback, user](VulkanCommandBuffer& commands) mutable {
             setVertexBufferObjectCommon(vb, index, bo);
+            auto completion = resource_ptr<VulkanAsyncCallback>::construct(&mResourceManager, AsyncCompletion(this, handler, callback, user));
+            commands.acquire(completion);
         };
 
-        auto onCompleteFunc = [this, handler, callback, user]() mutable {
-            auto completion = AsyncCompletion(this, handler, callback, user);
-            completion.schedule(AsyncCallStatus::COMPLETED);
+        auto onCompleteFunc = []() mutable {
+
         };
         mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc, jobId, mJobQueue);
         FVK_LOGW << "Async Update Vertex Job " << jobId << " scheduled";
@@ -2060,13 +2061,14 @@ void VulkanDriver::updateBufferObjectAsyncR(AsyncCallId jobId, Handle<HwBufferOb
     // pass a resource_ptr instead, which is ref-counted.
     auto bo = resource_ptr<VulkanBufferObject>::cast(&mResourceManager, boh);
     if constexpr (ASYNC_VER_2) {
-        auto asyncJobFunc = [this, bo, &bd, byteOffset](VulkanCommandBuffer& commands) mutable {
+        auto asyncJobFunc = [this, bo, &bd, byteOffset, handler, callback, user](VulkanCommandBuffer& commands) mutable {
             updateBufferObjectCommon(bo, std::move(bd), byteOffset, commands);
+            auto completion = resource_ptr<VulkanAsyncCallback>::construct(&mResourceManager, AsyncCompletion(this, handler, callback, user));
+            commands.acquire(completion);
         };
 
-        auto onCompleteFunc = [this, handler, callback, user]() mutable {
-            auto completion = AsyncCompletion(this, handler, callback, user);
-            completion.schedule(AsyncCallStatus::COMPLETED);
+        auto onCompleteFunc = []() mutable {
+
         };
         mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc, jobId, mJobQueue);
         FVK_LOGW << "Async Updated Buffer Object Job " << jobId << " scheduled";
@@ -2129,14 +2131,15 @@ void VulkanDriver::update3DImageAsyncR(AsyncCallId jobId, Handle<HwTexture> th,
     auto t = resource_ptr<VulkanTexture>::cast(&mResourceManager, th);
     if constexpr (ASYNC_VER_2) {
         auto asyncJobFunc = [this, t, level, xoffset, yoffset, zoffset, width, height, depth,
-                &data](VulkanCommandBuffer& commands) mutable {
+                &data, handler, callback, user](VulkanCommandBuffer& commands) mutable {
             update3DImageCommon(t, level, xoffset, yoffset, zoffset, width, height, depth,
                     std::move(data));
+            auto completion = resource_ptr<VulkanAsyncCallback>::construct(&mResourceManager, AsyncCompletion(this, handler, callback, user));
+            commands.acquire(completion);
         };
 
-        auto onCompleteFunc = [this, handler, callback, user]() mutable {
-            auto completion = AsyncCompletion(this, handler, callback, user);
-            completion.schedule(AsyncCallStatus::COMPLETED);
+        auto onCompleteFunc = []() mutable {
+
         };
         mAsyncBackend.postUpdateJob(asyncJobFunc, onCompleteFunc, jobId, mJobQueue);
         FVK_LOGW << "Async Updated 3D Image Job " << jobId << " scheduled";

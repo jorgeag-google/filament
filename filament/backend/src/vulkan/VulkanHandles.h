@@ -160,6 +160,7 @@ public:
     // NOLINTNEXTLINE(bugprone-exception-escape)
     ~VulkanAsyncCallback() {
         mCompletion.schedule(AsyncCallStatus::COMPLETED);
+        FVK_LOGW << "Async Job completed";
     }
     DriverBase::AsyncCompletion mCompletion;
 };

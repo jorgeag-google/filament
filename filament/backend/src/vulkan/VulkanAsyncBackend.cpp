@@ -61,8 +61,9 @@ void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)>
 
     auto onCompleteFunc = [this, callBackFunc, jobId, queue]() {
         callBackFunc();
-        queue->push([this]() {
+        queue->push([this, jobId]() {
             mAsyncCommands->flush();
+            FVK_LOGW << "Async Job " << jobId << " flush";
         });
         FVK_LOGW << "Async Job " << jobId << " callback executed";
     };
