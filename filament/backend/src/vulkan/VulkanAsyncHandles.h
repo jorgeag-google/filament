@@ -18,6 +18,7 @@
 #define TNT_FILAMENT_BACKEND_VULKANASYNCHANDLES_H
 
 #include "DriverBase.h"
+#include "VulkanConstants.h"
 
 #include "vulkan/memory/Resource.h"
 #include "vulkan/utils/StaticVector.h"
@@ -308,6 +309,21 @@ private:
 
     std::shared_ptr<VulkanCmdFence> mFence;
     utils::Mutex mFenceMutex;
+};
+
+struct VulkanAsyncCallback :  fvkmemory::ThreadSafeResource {
+public:
+
+    VulkanAsyncCallback(DriverBase::AsyncCompletion completion) : mCompletion(std::move(completion)) {
+        FVK_LOGW << "Resource callback created";
+    }
+
+    // NOLINTNEXTLINE(bugprone-exception-escape)
+    ~VulkanAsyncCallback() {
+        mCompletion.schedule(AsyncCallStatus::COMPLETED);
+        FVK_LOGW << "Async Job completed (resource destructor)";
+    }
+    DriverBase::AsyncCompletion mCompletion;
 };
 
 } // namespace filament::backend
