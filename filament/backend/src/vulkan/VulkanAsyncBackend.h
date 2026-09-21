@@ -26,9 +26,9 @@ namespace filament::backend {
 
 class VulkanAsyncBackend {
 public:
-    explicit VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, bool asyncAvailable);
+    explicit VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, ResourceManager* resourceManager, bool asyncAvailable);
 
-    void postUpdateJob(std::function<void(VulkanCommandBuffer&, ResourceManager*)> job, AsyncCallId jobId, JobQueue* queue);
+    void postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, AsyncCallId jobId, JobQueue* queue);
     void gc();
     void terminate() noexcept;
 
