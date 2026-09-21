@@ -16,6 +16,7 @@
 #ifndef TNT_FILAMENT_BACKEND_VULKANASYNCBACKEND_H
 #define TNT_FILAMENT_BACKEND_VULKANASYNCBACKEND_H
 
+#include "DriverBase.h"
 #include "JobQueue.h"
 #include "VulkanCommands.h"
 #include "VulkanHandles.h"
@@ -26,9 +27,11 @@ namespace filament::backend {
 
 class VulkanAsyncBackend {
 public:
-    explicit VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, ResourceManager* resourceManager, bool asyncAvailable);
+    explicit VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context,
+        ResourceManager* resourceManager, bool asyncAvailable);
 
-    void postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, AsyncCallId jobId, JobQueue* queue);
+    void postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, AsyncCallId jobId,
+        DriverBase::AsyncCompletion& completion, JobQueue* queue);
     void gc();
     void terminate() noexcept;
 
