@@ -26,9 +26,11 @@ namespace filament::backend {
 
 class VulkanAsyncBackend {
 public:
-    explicit VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, bool asyncAvailable);
+    explicit VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context,
+        ResourceManager* resource_manager, bool asyncAvailable);
 
-    void postUpdateJob(std::function<void(VulkanCommandBuffer&, ResourceManager*)> job, AsyncCallId jobId, JobQueue* queue);
+    void postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, AsyncCallId jobId,
+        JobQueue* queue);
     void gc();
     void terminate() noexcept;
 
@@ -37,7 +39,7 @@ private:
     std::unique_ptr<VulkanCommands> mAsyncCommands = nullptr;
     std::unique_ptr<VulkanSemaphoreManager> mSemaphoreManager = nullptr;
     std::unique_ptr<fvkutils::TaskHandler> mTaskHandler = nullptr;
-    std::unique_ptr<fvkmemory::ResourceManager> mResourceManager = nullptr;
+
     void startTaskHandler();
     void grabSyncHandles();
 };

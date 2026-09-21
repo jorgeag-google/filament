@@ -15,12 +15,11 @@
  */
 #include "VulkanAsyncBackend.h"
 namespace filament::backend {
-VulkanAsyncBackend::VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context, bool asyncAvailable) {
+VulkanAsyncBackend::VulkanAsyncBackend(const VulkanPlatform* platform, const VulkanContext& context,
+    ResourceManager* resource_manager, bool asyncAvailable) {
     if (asyncAvailable) {
-        // Crete our own resource manager
-        mResourceManager = std::make_unique<fvkmemory::ResourceManager>(1048576, true, true);
         // keep track of our own Semaphore manager for the later Sync work
-        mSemaphoreManager = std::make_unique<VulkanSemaphoreManager>(platform->getDevice(), mResourceManager.get());
+        mSemaphoreManager = std::make_unique<VulkanSemaphoreManager>(platform->getDevice(), resource_manager);
 
         auto graphicsQueueFamilyIndex = platform->getGraphicsQueueFamilyIndex();
         auto protectedGraphicsQueueFamilyIndex = platform->getProtectedGraphicsQueueFamilyIndex();
@@ -54,11 +53,10 @@ void VulkanAsyncBackend::runUntilComplete() {
     }
 }
 
-void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&, ResourceManager*)> job, AsyncCallId jobId, JobQueue* queue) {
+void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, AsyncCallId jobId, JobQueue* queue) {
     VulkanCommandBuffer& commands = mAsyncCommands->get();
-    ResourceManager* resourceManager = mResourceManager.get();
-    auto updateFunc = [&commands, &resourceManager, job, jobId] {
-        job(commands, resourceManager);
+    auto updateFunc = [&commands, job, jobId] {
+        job(commands);
         FVK_LOGW << "Async Job " << jobId << " recorded";
     };
 
@@ -91,11 +89,9 @@ void VulkanAsyncBackend::gc() {
     assert(mAsyncCommands);
     if (mTaskHandler) {
         mTaskHandler->post([this]() {
-            FVK_LOGW << "VulkanAsyncBackend - Before gc";
-            mResourceManager->print();
-            mAsyncCommands->gc(true);
-            FVK_LOGW << "VulkanAsyncBackend - After gc";
-            mResourceManager->print();
+                FVK_LOGW << "VulkanAsyncBackend - Before gc";
+                mAsyncCommands->gc(true);
+                FVK_LOGW << "VulkanAsyncBackend - After gc";
             }, [](){});
     }
 
