@@ -2021,7 +2021,7 @@ void VulkanDriver::updateIndexBufferAsyncR(AsyncCallId jobId, Handle<HwIndexBuff
     auto ib = promoteToAsync(resource_ptr<VulkanIndexBuffer>::cast(&mResourceManager, ibh));
 
     if constexpr (ASYNC_VER_2) {
-        AsyncCompletion completion {this, handler, callback, user};
+        AsyncCompletion* completion = new AsyncCompletion(this, handler, callback, user);
         auto asyncJobFunc = [this, ib, &p, byteOffset](VulkanCommandBuffer& commands) mutable {
             updateIndexBufferCommon(ib, std::move(p), byteOffset, commands);
         };
@@ -2063,7 +2063,7 @@ void VulkanDriver::updateBufferObjectAsyncR(AsyncCallId jobId, Handle<HwBufferOb
     // pass a resource_ptr instead, which is ref-counted.
     auto bo = promoteToAsync(resource_ptr<VulkanBufferObject>::cast(&mResourceManager, boh));
         if constexpr (ASYNC_VER_2) {
-            AsyncCompletion completion {this, handler, callback, user};
+            AsyncCompletion* completion = new AsyncCompletion(this, handler, callback, user);
             auto asyncJobFunc = [this, bo, &bd, byteOffset](VulkanCommandBuffer& commands) mutable {
                 updateBufferObjectCommon(bo, std::move(bd), byteOffset, commands);
             };
@@ -2126,7 +2126,7 @@ void VulkanDriver::update3DImageAsyncR(AsyncCallId jobId, Handle<HwTexture> th,
     // pass a resource_ptr instead, which is ref-counted.
     auto t = promoteToAsync(resource_ptr<VulkanTexture>::cast(&mResourceManager, th));
     if constexpr (ASYNC_VER_2) {
-        AsyncCompletion completion {this, handler, callback, user};
+        AsyncCompletion* completion = new AsyncCompletion(this, handler, callback, user);
         auto asyncJobFunc = [this, t, level, xoffset, yoffset, zoffset, width, height, depth,
                 &data](VulkanCommandBuffer& commands) mutable {
             update3DImageCommon(t, level, xoffset, yoffset, zoffset, width, height, depth,
