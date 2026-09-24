@@ -418,13 +418,10 @@ VulkanCommandBuffer& VulkanCommands::getProtected() {
     return ret;
 }
 
-bool VulkanCommands::flush(bool print) {
+bool VulkanCommands::flush() {
     // It's possible to call flush and wait at "terminate", in which case, we'll just return.
     if (!mPool && !mProtectedPool) {
         return false;
-    }
-    if (print) {
-        FVK_LOGW << "Inside VK commands (Async) ";
     }
 
     VkSemaphore injectedDependency = mInjectedDependency;
@@ -484,15 +481,11 @@ void VulkanCommands::wait() {
     FVK_SYSTRACE_END();
 }
 
-void VulkanCommands::gc(bool print) {
+void VulkanCommands::gc() {
     FVK_SYSTRACE_CONTEXT();
     FVK_SYSTRACE_START("commands::gc");
 
-    if (print) {
-        FVK_LOGW << "Inside VulkanCommands (Async) gc";
-    }
-
-    mPool->gc(print);
+    mPool->gc();
 
     if (mProtectedPool) {
         mProtectedPool->gc();

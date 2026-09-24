@@ -219,7 +219,7 @@ public:
 
     // Submits the current command buffer if it exists, then sets "current" to null.
     // If there are no outstanding commands then nothing happens and this returns false.
-    bool flush(bool print = false);
+    bool flush();
 
     // Returns the "rendering finished" semaphore for the most recent flush and removes
     // it from the existing dependency chain. This is especially useful for setting up
@@ -243,7 +243,7 @@ public:
     }
 
     // Destroys all command buffers that are no longer in use.
-    void gc(bool print = false);
+    void gc();
 
     // Waits for all outstanding command buffers to finish.
     void wait();
