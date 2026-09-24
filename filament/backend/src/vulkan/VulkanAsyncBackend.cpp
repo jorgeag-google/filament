@@ -20,21 +20,17 @@ VulkanAsyncBackend::VulkanAsyncBackend(const VulkanPlatform* platform, const Vul
     if (asyncAvailable) {
         // keep track of our own Semaphore manager for the later Sync work
         mSemaphoreManager = std::make_unique<VulkanSemaphoreManager>(platform->getDevice(), resourceManager);
-
-        auto graphicsQueueFamilyIndex = platform->getGraphicsQueueFamilyIndex();
-        auto protectedGraphicsQueueFamilyIndex = platform->getProtectedGraphicsQueueFamilyIndex();
         // A new queue only accessible by this object (It will live inside commands)
+        auto graphicsQueueFamilyIndex = platform->getGraphicsQueueFamilyIndex();
         VkQueue queue;
         bluevk::vkGetDeviceQueue(platform->getDevice(), graphicsQueueFamilyIndex, 0, &queue);
-        VkQueue protectedQueue;
-        bluevk::vkGetDeviceQueue(platform->getDevice(), protectedGraphicsQueueFamilyIndex, 0, &protectedQueue);
 
         mAsyncCommands = std::make_unique<VulkanCommands>(
                         platform->getDevice(),
                         queue,
                         graphicsQueueFamilyIndex,
-                        protectedQueue,
-                        protectedGraphicsQueueFamilyIndex,
+                        platform->getProtectedGraphicsQueue(),
+                        platform->getProtectedGraphicsQueueFamilyIndex(),
                         context,
                         mSemaphoreManager.get()
                         );
@@ -55,14 +51,16 @@ void VulkanAsyncBackend::runUntilComplete() {
 
 void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)> job,
     AsyncCallId jobId, DriverBase::AsyncCompletion* completion, JobQueue* queue) {
-    VulkanCommandBuffer& commands = mAsyncCommands->get();
 
-    auto updateFunc = [&commands, job, jobId] {
+
+    auto updateFunc = [this, job, jobId] {
+        VulkanCommandBuffer& commands = mAsyncCommands->get();
         job(commands);
         FVK_LOGW << "Async Job " << jobId << " recorded";
     };
 
     auto onCompleteFunc = [this, jobId, queue, completion]()  {
+
         queue->push([this, jobId, completion]()  {
             if (!mAsyncCommands->flush(true) ) { FVK_LOGW << "Error on flush";}
             FVK_LOGW << "Async Job " << jobId << " flush executed";
@@ -96,11 +94,11 @@ void VulkanAsyncBackend::gc() {
     assert(mAsyncCommands);
     if (mTaskHandler) {
         mTaskHandler->post([this]() {
-            FVK_LOGW << "VulkanAsyncBackend - Before gc";
-            mResourceManager->print();
-            mAsyncCommands->gc(true);
-            FVK_LOGW << "VulkanAsyncBackend - After gc";
-            mResourceManager->print();
+            //FVK_LOGW << "VulkanAsyncBackend - Before gc";
+            //mResourceManager->print();
+            mAsyncCommands->gc(false);
+            //FVK_LOGW << "VulkanAsyncBackend - After gc";
+            //mResourceManager->print();
             }, [](){});
     }
 
