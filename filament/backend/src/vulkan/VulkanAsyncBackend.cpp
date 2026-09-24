@@ -52,7 +52,6 @@ void VulkanAsyncBackend::runUntilComplete() {
 void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)> job,
     AsyncCallId jobId, DriverBase::AsyncCompletion* completion, JobQueue* queue) {
 
-
     auto updateFunc = [this, job, jobId] {
         VulkanCommandBuffer& commands = mAsyncCommands->get();
         job(commands);
@@ -60,12 +59,11 @@ void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)>
     };
 
     auto onCompleteFunc = [this, jobId, queue, completion]()  {
-
-        queue->push([this, jobId, completion]()  {
-            if (!mAsyncCommands->flush(true) ) { FVK_LOGW << "Error on flush";}
-            FVK_LOGW << "Async Job " << jobId << " flush executed";
-            mAsyncCommands->wait();
-            FVK_LOGW << "Async Job " << jobId << " waited to finish";
+        if (!mAsyncCommands->flush(true) ) { FVK_LOGW << "Error on flush";}
+        FVK_LOGW << "Async Job " << jobId << " flush executed";
+        mAsyncCommands->wait();
+        FVK_LOGW << "Async Job " << jobId << " waited to finish";
+        queue->push([jobId, completion]()  {
             completion->schedule(AsyncCallStatus::COMPLETED);
             FVK_LOGW << "Async Job " << jobId << " fired callback";
             delete completion;
