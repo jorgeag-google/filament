@@ -487,9 +487,6 @@ void VulkanDriver::collectGarbage() {
 
     // Command buffers need to be submitted and completed before other resources can be gc'd.
     mCommands.gc();
-    if constexpr (ASYNC_VER_2) {
-        mAsyncBackend.gc();
-    }
     mDescriptorSetCache.gc();
     mStagePool.gc();
     mBufferCache.gc();

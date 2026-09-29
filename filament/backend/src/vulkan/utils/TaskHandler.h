@@ -21,37 +21,46 @@
 #include <thread>
 
 #include <utils/Condition.h>
+#include <utils/Invocable.h>
 #include <utils/Mutex.h>
 
 namespace filament::backend::fvkutils {
-// A helper class that runs tasks on a separate thread.
 class TaskHandler {
 public:
-    using WorkloadFunc = std::function<void()>;
-    using OnCompleteFunc = std::function<void()>;
-    using Task = std::pair<WorkloadFunc, OnCompleteFunc>;
+    // A task is invoked with `executed = true` from the handler thread. If the handler is shut
+    // down before the task is picked up, the task is instead invoked with `executed = false` so
+    // that clients can still release whatever the task owns (the user's PixelBufferDescriptor
+    // and the Vulkan objects of the request).
+    using Task = utils::Invocable<void(bool executed)>;
 
     TaskHandler();
 
-    // In addition to the workload that the handler will call, client must also provide an
-    // oncomplete function that the handler will call either when the workload completes or when
-    // the handler is shutdown (so that we can clean-up even when the task was not carried out).
-    void post(WorkloadFunc&& workload, OnCompleteFunc&& oncomplete);
+    // Joins the thread if `shutdown()` was not called: destroying a joinable std::thread
+    // terminates the process. Unlike `shutdown()`, this cannot panic: throwing out of a
+    // destructor terminates the process as well.
+    ~TaskHandler();
+
+    void post(Task&& task);
 
     // This will block until all of the tasks are done.
     void drain();
 
-    // This will quit without running the workloads, but oncomplete callbacks will still be
-    // called.
+    // This will quit without running the pending tasks, but they will still be invoked with
+    // `executed = false` so that they can clean up after themselves.
     void shutdown();
 
 private:
     void loop();
 
-    bool mShouldStop;
-    utils::Condition mHasTaskCondition;
+    // Stops the thread and flushes the queue. Unlike `shutdown()` this makes no assertion, so
+    // it is safe to call from the destructor.
+    void stop() noexcept;
+
     utils::Mutex mTaskQueueMutex;
-    std::queue<Task> mTaskQueue;
+    utils::Condition mHasTaskCondition;
+    bool mShouldStop UTILS_GUARDED_BY(mTaskQueueMutex);
+    std::queue<Task> mTaskQueue UTILS_GUARDED_BY(mTaskQueueMutex);
+    // Must be declared last: the thread runs `loop()`, which uses all of the above.
     std::thread mThread;
 };
 }
