@@ -32,7 +32,6 @@ public:
 
     void postUpdateJob(std::function<void(VulkanCommandBuffer&)> job, AsyncCallId jobId,
         DriverBase::AsyncCompletion* completion, JobQueue* queue);
-    void gc();
     void terminate() noexcept;
 
     void runUntilComplete();
