@@ -52,24 +52,21 @@ void VulkanAsyncBackend::runUntilComplete() {
 void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)> job,
     AsyncCallId jobId, DriverBase::AsyncCompletion* completion, JobQueue* queue) {
 
-    auto updateFunc = [this, job] {
+    startTaskHandler();
+    mTaskHandler->post([this, job, queue, completion] (bool const success) mutable {
         VulkanCommandBuffer& commands = mAsyncCommands->get();
         job(commands);
-    };
-
-    auto onCompleteFunc = [this, queue, completion]()  {
-        mAsyncCommands->flush();
-        mAsyncCommands->wait();
-        mAsyncCommands->gc();
-        queue->push([completion]()  {
-            completion->schedule(AsyncCallStatus::COMPLETED);
-            //FVK_LOGW << "Completion callback fired - " << jobId;;
-            delete completion;
-        });
-    };
-
-    startTaskHandler();
-    mTaskHandler->post(updateFunc, onCompleteFunc);
+        if (success) {
+            mAsyncCommands->flush();
+            mAsyncCommands->wait();
+            mAsyncCommands->gc();
+            queue->push([completion]()  {
+                completion->schedule(AsyncCallStatus::COMPLETED);
+                //FVK_LOGW << "Completion callback fired - " << jobId;;
+                delete completion;
+            });
+        }
+    });
 
 }
 
@@ -85,13 +82,5 @@ void VulkanAsyncBackend::grabSyncHandles() {
     assert(mAsyncCommands);
 }
 
-void VulkanAsyncBackend::gc() {
-    assert(mAsyncCommands);
-    /*if (mTaskHandler) {
-        mTaskHandler->post([this]() {
-            mAsyncCommands->gc();
-            }, [](){});
-    }*/
-}
 
 }

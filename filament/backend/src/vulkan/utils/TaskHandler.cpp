@@ -25,69 +25,84 @@ TaskHandler::TaskHandler()
     : mShouldStop(false),
       mThread(&TaskHandler::loop, this) {}
 
-void TaskHandler::post(WorkloadFunc&& workload, OnCompleteFunc&& oncomplete) {
-    assert_invariant(!mShouldStop);
+TaskHandler::~TaskHandler() {
+    // shutdown() is the expected path; this only catches the cases where the owner never got that
+    // far (e.g. a failure while initializing VulkanReadPixels). Note that the pending tasks are
+    // still invoked with `executed = false` by loop().
+    if (mThread.joinable()) {
+        stop();
+    }
+}
+
+void TaskHandler::post(Task&& task) {
     {
-        utils::UniqueLock lock(mTaskQueueMutex);
-        mTaskQueue.push(std::make_pair(std::move(workload), std::move(oncomplete)));
+        utils::LockGuard const lock(mTaskQueueMutex);
+        assert_invariant(!mShouldStop);
+        mTaskQueue.push(std::move(task));
     }
     mHasTaskCondition.notify_one();
 }
 
 void TaskHandler::drain() {
-    assert_invariant(!mShouldStop);
-
     utils::Mutex syncPointMutex;
     utils::Condition syncCondition;
     bool done = false;
-    post([] {},
-            [&syncPointMutex, &syncCondition, &done] {
-                {
-                    utils::UniqueLock lock(syncPointMutex);
-                    done = true;
-                    syncCondition.notify_one();
-                }
-            });
+    post([&syncPointMutex, &syncCondition, &done](bool) {
+        utils::LockGuard const lock(syncPointMutex);
+        done = true;
+        syncCondition.notify_one();
+    });
 
     utils::UniqueLock lock(syncPointMutex);
     syncCondition.wait(lock, [&done] { return done; });
 }
 
-void TaskHandler::shutdown() {
+void TaskHandler::stop() noexcept {
     {
-        utils::UniqueLock lock(mTaskQueueMutex);
+        utils::LockGuard const lock(mTaskQueueMutex);
         mShouldStop = true;
     }
     mHasTaskCondition.notify_one();
     mThread.join();
-    FILAMENT_CHECK_POSTCONDITION(mTaskQueue.empty())
+}
+
+void TaskHandler::shutdown() {
+    stop();
+    bool isEmpty = false;
+    {
+        utils::LockGuard const lock(mTaskQueueMutex);
+        isEmpty = mTaskQueue.empty();
+    }
+    FILAMENT_CHECK_POSTCONDITION(isEmpty)
             << "TaskHandler has tasks in the queue after shutdown";
 }
 
 void TaskHandler::loop() {
     while (true) {
         utils::UniqueLock lock(mTaskQueueMutex);
-        mHasTaskCondition.wait(lock, [this] { return !mTaskQueue.empty() || mShouldStop; });
+        mHasTaskCondition.wait(lock, [this]() UTILS_NO_THREAD_SAFETY_ANALYSIS {
+            return !mTaskQueue.empty() || mShouldStop;
+        });
         if (mShouldStop) {
             break;
         }
-        auto [workload, oncomplete] = mTaskQueue.front();
+        Task task = std::move(mTaskQueue.front());
         mTaskQueue.pop();
         lock.unlock();
-        workload();
-        oncomplete();
+        task(true);
     }
 
-    // Clean-up: we still need to call oncomplete for clients to do clean-up.
+    // Clean-up: the tasks we did not run still own resources, so we need to give them a chance to
+    // release them.
     while (true) {
         utils::UniqueLock lock(mTaskQueueMutex);
         if (mTaskQueue.empty()) {
             break;
         }
-        auto [workload, oncomplete] = mTaskQueue.front();
+        Task task = std::move(mTaskQueue.front());
         mTaskQueue.pop();
         lock.unlock();
-        oncomplete();
+        task(false);
     }
 }
 } // namespace filament::backend::fvkutils
