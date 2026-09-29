@@ -23,7 +23,7 @@ VulkanAsyncBackend::VulkanAsyncBackend(const VulkanPlatform* platform, const Vul
         // A new queue only accessible by this object (It will live inside commands)
         auto graphicsQueueFamilyIndex = platform->getGraphicsQueueFamilyIndex();
         VkQueue queue;
-        bluevk::vkGetDeviceQueue(platform->getDevice(), graphicsQueueFamilyIndex, 0, &queue);
+        bluevk::vkGetDeviceQueue(platform->getDevice(), graphicsQueueFamilyIndex, 1, &queue);
 
         mAsyncCommands = std::make_unique<VulkanCommands>(
                         platform->getDevice(),
