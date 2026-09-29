@@ -60,8 +60,10 @@ void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)>
     auto onCompleteFunc = [this, queue, completion]()  {
         mAsyncCommands->flush();
         mAsyncCommands->wait();
+        mAsyncCommands->gc();
         queue->push([completion]()  {
             completion->schedule(AsyncCallStatus::COMPLETED);
+            //FVK_LOGW << "Completion callback fired - " << jobId;;
             delete completion;
         });
     };
@@ -85,11 +87,11 @@ void VulkanAsyncBackend::grabSyncHandles() {
 
 void VulkanAsyncBackend::gc() {
     assert(mAsyncCommands);
-    if (mTaskHandler) {
+    /*if (mTaskHandler) {
         mTaskHandler->post([this]() {
             mAsyncCommands->gc();
             }, [](){});
-    }
+    }*/
 }
 
 }
