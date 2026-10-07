@@ -2060,7 +2060,7 @@ void VulkanDriver::updateIndexBufferAsyncR(AsyncCallId jobId, Handle<HwIndexBuff
         getJobQueue()->push([this, ib, byteOffset,
             bufferRelease = AsyncBufferRelease(this, std::move(p)),
             completion = AsyncCompletion(this, handler, callback, user)]() mutable {
-        	updateIndexBufferCommon(ib, bufferRelease.detach(), byteOffset);
+        	updateIndexBufferCommon(ib, bufferRelease.detach(), byteOffset, mCommands.get());
 	        completion.schedule(AsyncCallStatus::COMPLETED);
 	    }, jobId);
     }
@@ -2101,7 +2101,7 @@ void VulkanDriver::updateBufferObjectAsyncR(AsyncCallId jobId, Handle<HwBufferOb
     	    getJobQueue()->push([this, bo, byteOffset,
             	bufferRelease = AsyncBufferRelease(this, std::move(bd)),
             	completion = AsyncCompletion(this, handler, callback, user)]() mutable {
-            updateBufferObjectCommon(bo, bufferRelease.detach(), byteOffset);
+            updateBufferObjectCommon(bo, bufferRelease.detach(), byteOffset, mCommands.get());
             completion.schedule(AsyncCallStatus::COMPLETED);
             }, jobId);
         }
