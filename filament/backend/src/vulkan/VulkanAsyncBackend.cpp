@@ -53,16 +53,19 @@ void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)>
     AsyncCallId jobId, DriverBase::AsyncCompletion* completion, JobQueue* queue) {
 
     startTaskHandler();
-    mTaskHandler->post([this, job, queue, completion] (bool const success) mutable {
+    mTaskHandler->post([this, job, queue, completion, jobId] (bool const success) mutable {
         VulkanCommandBuffer& commands = mAsyncCommands->get();
+        FVK_LOGW << "About to summit job: " << jobId;
         job(commands);
+        FVK_LOGW << "Job: " << jobId << " submitted";
         if (success) {
+            FVK_LOGW << "About to flush job: " << jobId;
             mAsyncCommands->flush();
             mAsyncCommands->wait();
             mAsyncCommands->gc();
-            queue->push([completion]()  {
+            queue->push([completion, jobId]()  {
                 completion->schedule(AsyncCallStatus::COMPLETED);
-                //FVK_LOGW << "Completion callback fired - " << jobId;;
+                FVK_LOGW << "Completion callback fired - " << jobId;
                 delete completion;
             });
         }
