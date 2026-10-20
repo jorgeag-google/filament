@@ -2157,7 +2157,7 @@ void VulkanDriver::update3DImageAsyncR(AsyncCallId jobId, Handle<HwTexture> th,
     // resource is still pending in the queue, the `cast` call inside the lambda will crash. So we
     // pass a resource_ptr instead, which is ref-counted.
     auto t = promoteToAsync(resource_ptr<VulkanTexture>::cast(&mResourceManager, th));
-    if constexpr (false) {
+    if constexpr (ASYNC_VER_2) {
         AsyncCompletion* completion = new AsyncCompletion(this, handler, callback, user);
         auto asyncJobFunc = [this, t, level, xoffset, yoffset, zoffset, width, height, depth,
                 &data](VulkanCommandBuffer& commands) mutable {
