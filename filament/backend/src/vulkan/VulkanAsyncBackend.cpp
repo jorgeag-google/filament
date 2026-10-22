@@ -48,21 +48,21 @@ void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)>
     AsyncCallId jobId, DriverBase::AsyncCompletion* completion, JobQueue* queue) {
 
     startTaskHandler();
-    mTaskHandler->post([this, job, queue, completion, jobId] (bool const success) mutable {
+    mTaskHandler->post([this, job, queue, completion /*jobId*/] (bool const success) mutable {
         VulkanCommandBuffer& commands = mAsyncCommands->get();
-        FVK_LOGW << "About to record commands - " << jobId;
+        //FVK_LOGW << "About to record commands - " << jobId;
         job(commands);
-        FVK_LOGW << "Workload sent to the GPU - " << jobId;
+        //FVK_LOGW << "Workload sent to the GPU - " << jobId;
         if (success) {
             mAsyncCommands->flush();
-            FVK_LOGW << "GPU flush for - " << jobId;
+            //FVK_LOGW << "GPU flush for - " << jobId;
             mAsyncCommands->wait();
-            FVK_LOGW << "Waited for - " << jobId;
+            //FVK_LOGW << "Waited for - " << jobId;
             mAsyncCommands->gc();
-            FVK_LOGW << "GC called for - " << jobId;
-            queue->push([completion, jobId]()  {
+            //FVK_LOGW << "GC called for - " << jobId;
+            queue->push([completion/*, jobId*/]()  {
                 completion->schedule(AsyncCallStatus::COMPLETED);
-                FVK_LOGW << "Completion callback fired - " << jobId;
+                //FVK_LOGW << "Completion callback fired - " << jobId;
                 delete completion;
             });
         }

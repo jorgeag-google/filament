@@ -183,7 +183,11 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags,
         VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location,
         int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData) {
     if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
-        FVK_LOGE << "VULKAN ERROR: (" << pLayerPrefix << ") " << pMessage;
+        FVK_LOGE << "VULKAN ERROR: (" << pLayerPrefix << ") code " << messageCode << " "<< pMessage;
+        const char* result = strstr(pMessage, "THREADING ERROR");
+        if (result != NULL) {
+            FVK_LOGE << "Here";
+        }
     } else {
         // TODO: emit best practices warnings about aggressive pipeline barriers.
         if (strstr(pMessage, "ALL_GRAPHICS_BIT") || strstr(pMessage, "ALL_COMMANDS_BIT")) {
@@ -2157,7 +2161,7 @@ void VulkanDriver::update3DImageAsyncR(AsyncCallId jobId, Handle<HwTexture> th,
     // resource is still pending in the queue, the `cast` call inside the lambda will crash. So we
     // pass a resource_ptr instead, which is ref-counted.
     auto t = promoteToAsync(resource_ptr<VulkanTexture>::cast(&mResourceManager, th));
-    if constexpr (ASYNC_VER_2) {
+    if constexpr (false) {
         AsyncCompletion* completion = new AsyncCompletion(this, handler, callback, user);
         auto asyncJobFunc = [this, t, level, xoffset, yoffset, zoffset, width, height, depth,
                 &data](VulkanCommandBuffer& commands) mutable {
