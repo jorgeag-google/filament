@@ -266,6 +266,7 @@ fvkmemory::resource_ptr<VulkanStageImage::Resource> VulkanStagePool::acquireImag
 void VulkanStagePool::gc() noexcept {
     FVK_SYSTRACE_CONTEXT();
     FVK_SYSTRACE_START("stagepool::gc");
+    return;
 
     // If this is one of the first few frames, return early to avoid wrapping unsigned integers.
     if (++mCurrentFrame <= TIME_BEFORE_EVICTION) {
