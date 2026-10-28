@@ -75,6 +75,7 @@ fvkmemory::resource_ptr<VulkanStage::Segment> VulkanStagePool::acquireStage(size
     // Stages track capacities and offsets in 32 bits. FTexture::setImageCommon caps texture
     // uploads at INT32_MAX bytes, so the request still fits after alignment.
     assert_invariant(requestedBytes <= std::numeric_limits<uint32_t>::max());
+    utils::LockGuard const lock(mLock);
 
     // Apply alignment to the byte count to ensure that, when we later flush
     // data written by the host, we only flush the atoms that we modified, and
@@ -266,8 +267,7 @@ fvkmemory::resource_ptr<VulkanStageImage::Resource> VulkanStagePool::acquireImag
 void VulkanStagePool::gc() noexcept {
     FVK_SYSTRACE_CONTEXT();
     FVK_SYSTRACE_START("stagepool::gc");
-    return;
-
+    utils::LockGuard const lock(mLock);
     // If this is one of the first few frames, return early to avoid wrapping unsigned integers.
     if (++mCurrentFrame <= TIME_BEFORE_EVICTION) {
         return;
