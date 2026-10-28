@@ -135,7 +135,7 @@ void VulkanBufferProxy::loadFromCpu(VulkanCommandBuffer& commands, const void* c
     // we need to ensure that this upload completes first (hence
     // dstStageMask=VK_PIPELINE_STAGE_TRANSFER_BIT).
     VkAccessFlags dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    VkPipelineStageFlags dstStageMask = 0; //VK_PIPELINE_STAGE_TRANSFER_BIT;
 
     if (getBinding() == VulkanBufferBinding::VERTEX) {
         dstAccessMask |= VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
