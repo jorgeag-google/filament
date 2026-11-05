@@ -284,7 +284,8 @@ VulkanDriver::VulkanDriver(VulkanPlatform* platform, VulkanContext& context,
                           : false),
           mStereoscopicType(driverConfig.stereoscopicType),
           mStereoscopicEyeCount(driverConfig.stereoscopicEyeCount),
-          mAsynchronousMode(driverConfig.asynchronousMode) {
+          mAsynchronousMode(driverConfig.asynchronousMode),
+          mAsyncWorker(mPlatform)  {
 
     if (mAsynchronousMode != AsynchronousMode::NONE) {
         mJobQueue = JobQueue::create();
@@ -430,6 +431,10 @@ void VulkanDriver::terminate() {
 
     // By this point, all of the VkSemaphores should have been returned to the pool.
     mSemaphoreManager.terminate();
+
+    if constexpr (ASYNC_VER_3) {
+        mAsyncWorker.terminate();
+    }
 
 #if FVK_ENABLED(FVK_DEBUG_RESOURCE_LEAK)
     mResourceManager.print();

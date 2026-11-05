@@ -220,4 +220,6 @@ static_assert(FVK_MAX_PIPELINE_AGE >= FVK_MAX_COMMAND_BUFFERS);
 static constexpr size_t FVK_MAX_PIPELINE_COUNT = 64;
 #endif // FVK_MAX_PIPELINE_COUNT
 
+constexpr static bool ASYNC_VER_3 = false;
+
 #endif

@@ -44,6 +44,7 @@
 
 #include "DriverBase.h"
 #include "JobQueue.h"
+#include "VulkanAsyncWorker.h"
 #include "private/backend/Driver.h"
 
 #include <utils/FixedCapacityVector.h>
@@ -239,6 +240,8 @@ private:
     JobWorker::Ptr mJobWorker;
 
     uint8_t mTicksSinceLastGc = 0;
+
+    VulkanAsyncWorker mAsyncWorker;
 
     // setAcquiredImage is a DECL_DRIVER_API_SYNCHRONOUS_N which means we don't necessarily have the
     // data to process it at call time. So we store it and process it during updateStreams.
