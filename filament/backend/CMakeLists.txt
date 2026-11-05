@@ -203,6 +203,8 @@ if (FILAMENT_SUPPORTS_VULKAN)
             include/backend/platforms/VulkanPlatform.h
             src/vulkan/VulkanAsyncHandles.cpp
             src/vulkan/VulkanAsyncHandles.h
+            src/vulkan/VulkanAsyncWorker.h
+            src/vulkan/VulkanAsyncWorker.cpp
             src/vulkan/VulkanBlitter.cpp
             src/vulkan/VulkanBlitter.h
             src/vulkan/VulkanBuffer.h
