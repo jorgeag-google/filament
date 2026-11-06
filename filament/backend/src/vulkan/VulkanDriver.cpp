@@ -295,6 +295,9 @@ VulkanDriver::VulkanDriver(VulkanPlatform* platform, VulkanContext& context,
         // significant infrastructure refactor (transfer queues, thread-safe VMA, etc), which will
         // be done in Phase 2.
         mJobWorker = AmortizationWorker::create(mJobQueue, driverConfig.asynchronousFrameBudget);
+        if constexpr (ASYNC_VER_3) {
+            mAsyncWorker.setBackendQueue(getJobQueue());
+        }
     }
 
     mContext.getDebugUtils().init(mPlatform->getInstance(), mPlatform->getDevice(),
@@ -2059,6 +2062,8 @@ void VulkanDriver::updateIndexBufferAsyncR(AsyncCallId jobId, Handle<HwIndexBuff
         updateIndexBufferCommon(ib, bufferRelease.detach(), byteOffset);
         completion.schedule(AsyncCallStatus::COMPLETED);
     }, jobId);
+    auto buffer = resource_ptr<VulkanIndexBuffer>::cast(&mResourceManager, ibh)->getVkBuffer();
+    mAsyncWorker.updateIndexBufferJob(buffer, std::move(p), byteOffset);
 }
 
 void VulkanDriver::updateBufferObjectCommon(resource_ptr<VulkanBufferObject> bo,

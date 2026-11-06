@@ -21,7 +21,17 @@ VulkanAsyncWorker::VulkanAsyncWorker(const VulkanPlatform* platform) {
     mAsyncQueue = platform->getAsyncQueue();
 }
 
-void VulkanAsyncWorker::postUpdateJob(AsyncCallId jobId, JobQueue* queue) {
+void VulkanAsyncWorker::setBackendQueue(JobQueue* queue) noexcept{
+    assert_invariant(queue != nullptr);
+    mBackendQueue = queue;
+}
+
+void VulkanAsyncWorker::updateIndexBufferJob(VkBuffer& buffer, BufferDescriptor&& p, uint32_t byteOffset) {
+    startTaskHandler();
+    auto cpuData = p.buffer;
+    auto size = p.size;
+    auto capacity = buffer;
+
 
 }
 

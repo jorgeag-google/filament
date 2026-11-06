@@ -16,7 +16,9 @@
 #ifndef TNT_VULKANASYNCWORKER_H
 #define TNT_VULKANASYNCWORKER_H
 
+#include "DriverBase.h"
 #include "JobQueue.h"
+#include "backend/BufferDescriptor.h"
 #include "backend/platforms/VulkanPlatform.h"
 #include "vulkan/utils/TaskHandler.h"
 
@@ -24,14 +26,15 @@ namespace filament::backend {
 class VulkanAsyncWorker {
 public:
     explicit VulkanAsyncWorker(const VulkanPlatform* platform);
-
-    void postUpdateJob(AsyncCallId jobId, JobQueue* queue);
+    void updateIndexBufferJob(VkBuffer& buffer, BufferDescriptor&& p, uint32_t byteOffset);
     void terminate() noexcept;
+    void setBackendQueue(JobQueue* queue) noexcept;
 
     void runUntilComplete();
 private:
     VkQueue mAsyncQueue = VK_NULL_HANDLE;
     std::unique_ptr<fvkutils::TaskHandler> mTaskHandler = nullptr;
+    JobQueue* mBackendQueue = nullptr;
     void startTaskHandler();
 
 };
