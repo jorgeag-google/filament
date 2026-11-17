@@ -129,6 +129,8 @@ private:
     // for easy deletions later. This is managed by the blocks themselves, in an
     // RAII pattern, during construction and destruction.
     std::unordered_map<uint32_t, Segment*> mSegments;
+    //
+    mutable utils::Mutex mLock;
 };
 
 class VulkanStageImage {
