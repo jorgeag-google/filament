@@ -36,6 +36,17 @@ void VulkanAsyncBackend::terminate() noexcept{
         mTaskHandler->shutdown();
         mTaskHandler.reset();
     }
+    if (mAsyncCommands) {
+        mAsyncCommands->wait();
+        mAsyncCommands->gc();
+        mAsyncCommands->updateFences();
+        mAsyncCommands->terminate();
+        mAsyncCommands.reset();
+    }
+    if (mSemaphoreManager) {
+        mSemaphoreManager->terminate();
+        mSemaphoreManager.reset();
+    }
 }
 
 void VulkanAsyncBackend::runUntilComplete() {
@@ -59,6 +70,7 @@ void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)>
             mAsyncCommands->wait();
             //FVK_LOGW << "Waited for - " << jobId;
             mAsyncCommands->gc();
+            //mAsyncCommands->updateFences();
             //FVK_LOGW << "GC called for - " << jobId;
             queue->push([completion/*, jobId*/]()  {
                 completion->schedule(AsyncCallStatus::COMPLETED);
