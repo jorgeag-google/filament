@@ -31,6 +31,7 @@ class VulkanAsyncBackend {
         void terminate() noexcept;
 
         void runUntilComplete();
+        void gc();
     private:
         std::unique_ptr<VulkanCommands> mAsyncCommands = nullptr;
         std::unique_ptr<VulkanSemaphoreManager> mSemaphoreManager = nullptr;

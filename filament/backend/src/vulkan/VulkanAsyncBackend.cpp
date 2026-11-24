@@ -36,6 +36,7 @@ void VulkanAsyncBackend::terminate() noexcept{
         mTaskHandler->shutdown();
         mTaskHandler.reset();
     }
+
     if (mAsyncCommands) {
         mAsyncCommands->wait();
         mAsyncCommands->gc();
@@ -43,6 +44,7 @@ void VulkanAsyncBackend::terminate() noexcept{
         mAsyncCommands->terminate();
         mAsyncCommands.reset();
     }
+
     if (mSemaphoreManager) {
         mSemaphoreManager->terminate();
         mSemaphoreManager.reset();
@@ -52,6 +54,14 @@ void VulkanAsyncBackend::terminate() noexcept{
 void VulkanAsyncBackend::runUntilComplete() {
     if (mTaskHandler) {
         mTaskHandler->drain();
+    }
+}
+
+void VulkanAsyncBackend::gc() {
+    if (mTaskHandler) {
+        mTaskHandler->post([this] (bool const success){
+            mAsyncCommands->gc();
+        });
     }
 }
 
@@ -69,7 +79,7 @@ void VulkanAsyncBackend::postUpdateJob(std::function<void(VulkanCommandBuffer&)>
             //FVK_LOGW << "GPU flush for - " << jobId;
             mAsyncCommands->wait();
             //FVK_LOGW << "Waited for - " << jobId;
-            mAsyncCommands->gc();
+            //mAsyncCommands->gc();
             //mAsyncCommands->updateFences();
             //FVK_LOGW << "GC called for - " << jobId;
             queue->push([completion/*, jobId*/]()  {

@@ -414,6 +414,10 @@ void VulkanDriver::terminate() {
     mDefaultRenderTarget = {};
     mPipelineState = {};
 
+    if constexpr (ASYNC_VER_2) {
+        mAsyncBackend.terminateCommands();
+    }
+
     mQueryManager.terminate();
 
     mBlitter.terminate();
@@ -440,6 +444,10 @@ void VulkanDriver::terminate() {
 
     // Before terminating ResourceManager, we must make sure all of the resource_ptrs have been unset.
     mResourceManager.terminate();
+
+    if constexpr (ASYNC_VER_2) {
+        mAsyncBackend.terminateSempahoremanager();
+    }
 
     // Must come after `mResourceManager`.
     // Before terminating the memory pool, we must make sure all the VulkanBufferMemory are yielded
@@ -516,6 +524,10 @@ void VulkanDriver::collectGarbage() {
     mPipelineCache.gc();
 
     mResourceManager.gc();
+
+    if constexpr (ASYNC_VER_2) {
+        mAsyncBackend.gc();
+    }
 
 #if FVK_ENABLED(FVK_DEBUG_RESOURCE_LEAK)
     mResourceManager.print();
